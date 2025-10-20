@@ -15,4 +15,8 @@
     <string name="select_download_location">Select download location</string>
     <string name="download_complete">Download complete</string>
     <string name="download_failed">Download failed</string>
+    <string name="settings">Settings</string>
+    <string name="download_folder">Download Folder</string>
+    <string name="download_settings">Download Settings</string>
+    <string name="default_folder">Default (Android/data/.../X360Games)</string>
 </resources>

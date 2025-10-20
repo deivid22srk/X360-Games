@@ -15,6 +15,7 @@ class PreferencesManager(private val context: Context) {
     companion object {
         private val USERNAME_KEY = stringPreferencesKey("username")
         private val COOKIES_KEY = stringPreferencesKey("cookies")
+        private val DOWNLOAD_PATH_KEY = stringPreferencesKey("download_path")
     }
     
     val username: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -23,6 +24,10 @@ class PreferencesManager(private val context: Context) {
     
     val cookies: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[COOKIES_KEY]
+    }
+    
+    val downloadPath: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[DOWNLOAD_PATH_KEY]
     }
     
     suspend fun saveCredentials(username: String, cookies: String) {
@@ -36,6 +41,12 @@ class PreferencesManager(private val context: Context) {
         context.dataStore.edit { preferences ->
             preferences.remove(USERNAME_KEY)
             preferences.remove(COOKIES_KEY)
+        }
+    }
+    
+    suspend fun saveDownloadPath(path: String) {
+        context.dataStore.edit { preferences ->
+            preferences[DOWNLOAD_PATH_KEY] = path
         }
     }
 }

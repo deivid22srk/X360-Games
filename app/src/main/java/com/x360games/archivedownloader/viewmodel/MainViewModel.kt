@@ -9,6 +9,7 @@ import com.x360games.archivedownloader.data.DownloadItem
 import com.x360games.archivedownloader.data.DownloadState
 import com.x360games.archivedownloader.network.ArchiveRepository
 import com.x360games.archivedownloader.utils.FileUtils
+import com.x360games.archivedownloader.utils.NotificationHelper
 import com.x360games.archivedownloader.utils.PreferencesManager
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -27,6 +28,7 @@ sealed class UiState {
 class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ArchiveRepository(application)
     private val preferencesManager = PreferencesManager(application)
+    private val notificationHelper = NotificationHelper(application)
     
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -59,6 +61,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     
     val storedCookies = preferencesManager.cookies.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        null
+    )
+    
+    val downloadPath = preferencesManager.downloadPath.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
         null
@@ -135,6 +143,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun downloadFile(item: ArchiveItem, file: ArchiveFile, destinationDir: File) {
         val downloadId = "${item.id}_${file.name}"
+        val notificationId = downloadId.hashCode()
         
         _downloads.value = _downloads.value + (downloadId to DownloadItem(
             id = downloadId,
@@ -142,6 +151,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             url = "${item.url}/download/${file.name}",
             state = DownloadState.Downloading(0, file.name)
         ))
+        
+        notificationHelper.showDownloadProgress(notificationId, file.name, 0)
         
         viewModelScope.launch {
             val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
@@ -158,6 +169,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                         url = fileUrl,
                         state = DownloadState.Downloading(progress, file.name)
                     ))
+                    notificationHelper.showDownloadProgress(notificationId, file.name, progress)
                 }
             )
             
@@ -166,9 +178,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 fileName = file.name,
                 url = fileUrl,
                 state = if (result.isSuccess) {
+                    notificationHelper.showDownloadComplete(notificationId, file.name)
                     DownloadState.Success(file.name, result.getOrNull()!!.absolutePath)
                 } else {
-                    DownloadState.Error(result.exceptionOrNull()?.message ?: "Download failed")
+                    val errorMsg = result.exceptionOrNull()?.message ?: "Download failed"
+                    notificationHelper.showDownloadError(notificationId, file.name, errorMsg)
+                    DownloadState.Error(errorMsg)
                 }
             ))
         }
@@ -196,6 +211,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             _isLoggedIn.value = false
             _username.value = null
             userCookies = null
+        }
+    }
+    
+    fun updateDownloadPath(path: String) {
+        viewModelScope.launch {
+            preferencesManager.saveDownloadPath(path)
         }
     }
     

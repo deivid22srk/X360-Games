@@ -15,6 +15,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
@@ -62,8 +63,10 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val downloads by viewModel.downloads.collectAsState()
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val username by viewModel.username.collectAsState()
+    val downloadPath by viewModel.downloadPath.collectAsState()
     
     var showLoginWebView by remember { mutableStateOf(false) }
+    var showSettings by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     val storagePermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -72,6 +75,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         null
     } else {
         rememberPermissionState(Manifest.permission.WRITE_EXTERNAL_STORAGE)
+    }
+    
+    val notificationPermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        rememberPermissionState(Manifest.permission.POST_NOTIFICATIONS)
+    } else {
+        null
     }
     
     LaunchedEffect(downloads) {
@@ -124,6 +133,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             contentDescription = "Refresh"
                         )
                     }
+                    
+                    IconButton(onClick = { showSettings = true }) {
+                        Icon(
+                            imageVector = Icons.Default.Settings,
+                            contentDescription = "Settings"
+                        )
+                    }
                 }
             )
         },
@@ -159,8 +175,12 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                 isExpanded = expandedItems.contains(item.id),
                                 onToggleExpanded = { viewModel.toggleItemExpansion(item.id) },
                                 onDownloadFile = { file ->
+                                    if (notificationPermissionState?.status?.isGranted == false) {
+                                        notificationPermissionState.launchPermissionRequest()
+                                    }
+                                    
                                     if (storagePermissionState?.status?.isGranted != false) {
-                                        val downloadDir = FileUtils.getDefaultDownloadDirectory(context)
+                                        val downloadDir = FileUtils.getDownloadDirectory(context, downloadPath)
                                         viewModel.downloadFile(item, file, downloadDir)
                                     } else {
                                         storagePermissionState.launchPermissionRequest()
@@ -198,6 +218,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                 showLoginWebView = false
             },
             onDismiss = { showLoginWebView = false }
+        )
+    }
+    
+    if (showSettings) {
+        SettingsScreen(
+            onNavigateBack = { showSettings = false },
+            viewModel = viewModel
         )
     }
 }
