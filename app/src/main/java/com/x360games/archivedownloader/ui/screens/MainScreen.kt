@@ -46,7 +46,6 @@ import com.google.accompanist.permissions.rememberPermissionState
 import com.x360games.archivedownloader.R
 import com.x360games.archivedownloader.data.DownloadState
 import com.x360games.archivedownloader.ui.components.ArchiveItemCard
-import com.x360games.archivedownloader.ui.components.LoginDialog
 import com.x360games.archivedownloader.ui.components.SearchBar
 import com.x360games.archivedownloader.utils.FileUtils
 import com.x360games.archivedownloader.viewmodel.MainViewModel
@@ -64,7 +63,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
     val isLoggedIn by viewModel.isLoggedIn.collectAsState()
     val username by viewModel.username.collectAsState()
     
-    var showLoginDialog by remember { mutableStateOf(false) }
+    var showLoginWebView by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     val storagePermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -111,7 +110,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                             )
                         }
                     } else {
-                        IconButton(onClick = { showLoginDialog = true }) {
+                        IconButton(onClick = { showLoginWebView = true }) {
                             Icon(
                                 imageVector = Icons.Default.Login,
                                 contentDescription = stringResource(R.string.login)
@@ -192,13 +191,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
         }
     }
     
-    if (showLoginDialog) {
-        LoginDialog(
-            onDismiss = { showLoginDialog = false },
-            onLogin = { email, password ->
-                viewModel.login(email, password)
-                showLoginDialog = false
-            }
+    if (showLoginWebView) {
+        LoginWebViewScreen(
+            onLoginSuccess = { cookies ->
+                viewModel.loginWithCookies(cookies)
+                showLoginWebView = false
+            },
+            onDismiss = { showLoginWebView = false }
         )
     }
 }

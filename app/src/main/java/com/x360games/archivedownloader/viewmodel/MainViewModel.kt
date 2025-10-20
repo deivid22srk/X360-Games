@@ -113,13 +113,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     private fun filterItems(query: String) {
-        _filteredItems.value = if (query.isBlank()) {
-            allItems
-        } else {
-            allItems.filter { item ->
-                item.title.contains(query, ignoreCase = true) ||
-                item.id.contains(query, ignoreCase = true) ||
-                item.files.any { it.name.contains(query, ignoreCase = true) }
+        viewModelScope.launch {
+            _filteredItems.value = if (query.isBlank()) {
+                allItems
+            } else {
+                allItems.filter { item ->
+                    item.title.contains(query, ignoreCase = true) ||
+                    item.id.contains(query, ignoreCase = true)
+                }
             }
         }
     }
@@ -173,14 +174,20 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun login(email: String, password: String) {
+    fun loginWithCookies(cookies: String) {
         viewModelScope.launch {
-            val fakeCookie = "logged-in-sig=fake; logged-in-user=$email"
-            preferencesManager.saveCredentials(email, fakeCookie)
+            val username = extractUsernameFromCookies(cookies)
+            preferencesManager.saveCredentials(username, cookies)
             _isLoggedIn.value = true
-            _username.value = email
-            userCookies = fakeCookie
+            _username.value = username
+            userCookies = cookies
         }
+    }
+    
+    private fun extractUsernameFromCookies(cookies: String): String {
+        val usernameCookie = cookies.split("; ")
+            .find { it.startsWith("logged-in-user=") }
+        return usernameCookie?.substringAfter("=") ?: "User"
     }
     
     fun logout() {
