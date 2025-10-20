@@ -10,7 +10,7 @@ import androidx.room.TypeConverters
 @Database(
     entities = [DownloadEntity::class, SpeedHistoryEntity::class],
     version = 1,
-    exportSchema = true
+    exportSchema = false
 )
 @TypeConverters(Converters::class)
 abstract class AppDatabase : RoomDatabase() {

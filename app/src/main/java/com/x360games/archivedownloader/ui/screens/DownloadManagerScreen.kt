@@ -3,6 +3,7 @@ package com.x360games.archivedownloader.ui.screens
 import android.content.Intent
 import androidx.compose.animation.*
 import androidx.compose.animation.core.*
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -28,7 +29,7 @@ import com.x360games.archivedownloader.database.DownloadStatus
 import com.x360games.archivedownloader.service.DownloadService
 import com.x360games.archivedownloader.utils.FileUtils
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalFoundationApi::class)
 @Composable
 fun DownloadManagerScreen(
     downloads: List<DownloadEntity>,

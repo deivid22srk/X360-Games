@@ -506,3 +506,39 @@ private fun formatDuration(seconds: Long): String {
         }
     }
 }
+
+@Composable
+fun StatusBadge(status: DownloadStatus) {
+    val (color, text, icon) = when (status) {
+        DownloadStatus.DOWNLOADING -> Triple(Color(0xFF2196F3), "Downloading", Icons.Default.Download)
+        DownloadStatus.PAUSED -> Triple(Color(0xFFFF9800), "Paused", Icons.Default.Pause)
+        DownloadStatus.COMPLETED -> Triple(Color(0xFF4CAF50), "Completed", Icons.Default.CheckCircle)
+        DownloadStatus.FAILED -> Triple(Color(0xFFF44336), "Failed", Icons.Default.Error)
+        DownloadStatus.CANCELLED -> Triple(Color(0xFF9E9E9E), "Cancelled", Icons.Default.Cancel)
+        DownloadStatus.QUEUED -> Triple(Color(0xFF9C27B0), "Queued", Icons.Default.Schedule)
+    }
+    
+    Surface(
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.1f)
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = icon,
+                contentDescription = null,
+                modifier = Modifier.size(14.dp),
+                tint = color
+            )
+            Text(
+                text = text,
+                style = MaterialTheme.typography.labelSmall,
+                color = color,
+                fontWeight = FontWeight.Medium
+            )
+        }
+    }
+}

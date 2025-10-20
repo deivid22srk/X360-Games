@@ -3,6 +3,7 @@ package com.x360games.archivedownloader.database
 import androidx.room.Entity
 import androidx.room.PrimaryKey
 import androidx.room.ForeignKey
+import androidx.room.Index
 
 @Entity(
     tableName = "speed_history",
@@ -13,7 +14,8 @@ import androidx.room.ForeignKey
             childColumns = ["downloadId"],
             onDelete = ForeignKey.CASCADE
         )
-    ]
+    ],
+    indices = [Index(value = ["downloadId"])]
 )
 data class SpeedHistoryEntity(
     @PrimaryKey(autoGenerate = true)
