@@ -1,6 +1,7 @@
 package com.x360games.archivedownloader.viewmodel
 
 import android.app.Application
+import android.content.Intent
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -9,6 +10,7 @@ import com.x360games.archivedownloader.data.ArchiveItem
 import com.x360games.archivedownloader.data.DownloadItem
 import com.x360games.archivedownloader.data.DownloadState
 import com.x360games.archivedownloader.network.ArchiveRepository
+import com.x360games.archivedownloader.service.DownloadService
 import com.x360games.archivedownloader.utils.FileUtils
 import com.x360games.archivedownloader.utils.NotificationHelper
 import com.x360games.archivedownloader.utils.PreferencesManager
@@ -143,70 +145,30 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     fun downloadFile(item: ArchiveItem, file: ArchiveFile, customPath: String? = null) {
-        val downloadId = "${item.id}_${file.name}"
-        val notificationId = downloadId.hashCode()
+        val notificationId = "${item.id}_${file.name}".hashCode()
+        val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
         
-        _downloads.value = _downloads.value + (downloadId to DownloadItem(
-            id = downloadId,
-            fileName = file.name,
-            url = "${item.url}/download/${file.name}",
-            state = DownloadState.Downloading(0, file.name)
-        ))
-        
-        notificationHelper.showDownloadProgress(notificationId, file.name, 0)
-        
-        viewModelScope.launch {
-            val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
-            
-            val result = if (customPath != null && customPath.startsWith("content://")) {
-                repository.downloadFileToUri(
-                    fileUrl = fileUrl,
-                    fileName = file.name,
-                    destinationUri = Uri.parse(customPath),
-                    cookie = userCookies,
-                    onProgress = { progress ->
-                        _downloads.value = _downloads.value + (downloadId to DownloadItem(
-                            id = downloadId,
-                            fileName = file.name,
-                            url = fileUrl,
-                            state = DownloadState.Downloading(progress, file.name)
-                        ))
-                        notificationHelper.showDownloadProgress(notificationId, file.name, progress)
-                    }
-                ).map { it }
-            } else {
-                val defaultDir = FileUtils.getDefaultDownloadDirectory(getApplication())
-                repository.downloadFile(
-                    fileUrl = fileUrl,
-                    fileName = file.name,
-                    destinationDir = defaultDir,
-                    cookie = userCookies,
-                    onProgress = { progress ->
-                        _downloads.value = _downloads.value + (downloadId to DownloadItem(
-                            id = downloadId,
-                            fileName = file.name,
-                            url = fileUrl,
-                            state = DownloadState.Downloading(progress, file.name)
-                        ))
-                        notificationHelper.showDownloadProgress(notificationId, file.name, progress)
-                    }
-                ).map { it.absolutePath }
-            }
-            
-            _downloads.value = _downloads.value + (downloadId to DownloadItem(
-                id = downloadId,
-                fileName = file.name,
-                url = fileUrl,
-                state = if (result.isSuccess) {
-                    notificationHelper.showDownloadComplete(notificationId, file.name)
-                    DownloadState.Success(file.name, result.getOrNull()!!)
-                } else {
-                    val errorMsg = result.exceptionOrNull()?.message ?: "Download failed"
-                    notificationHelper.showDownloadError(notificationId, file.name, errorMsg)
-                    DownloadState.Error(errorMsg)
-                }
-            ))
+        val destinationPath = if (customPath != null && customPath.startsWith("content://")) {
+            customPath
+        } else {
+            val defaultDir = FileUtils.getDefaultDownloadDirectory(getApplication())
+            File(defaultDir, file.name).absolutePath
         }
+        
+        val totalBytes = FileUtils.parseFileSize(file.size)
+        
+        val intent = Intent(getApplication(), DownloadService::class.java).apply {
+            action = DownloadService.ACTION_START_DOWNLOAD
+            putExtra(DownloadService.EXTRA_FILE_NAME, file.name)
+            putExtra(DownloadService.EXTRA_FILE_URL, fileUrl)
+            putExtra(DownloadService.EXTRA_IDENTIFIER, item.id)
+            putExtra(DownloadService.EXTRA_DESTINATION_PATH, destinationPath)
+            putExtra(DownloadService.EXTRA_TOTAL_BYTES, totalBytes)
+            putExtra(DownloadService.EXTRA_COOKIE, userCookies)
+            putExtra(DownloadService.EXTRA_NOTIFICATION_ID, notificationId)
+        }
+        
+        getApplication<Application>().startService(intent)
     }
     
     fun loginWithCookies(cookies: String) {

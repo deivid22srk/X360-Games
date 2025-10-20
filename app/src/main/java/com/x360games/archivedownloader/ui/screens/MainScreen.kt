@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Logout
 import androidx.compose.material.icons.filled.Refresh
@@ -54,7 +55,10 @@ import com.x360games.archivedownloader.viewmodel.UiState
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalPermissionsApi::class)
 @Composable
-fun MainScreen(viewModel: MainViewModel = viewModel()) {
+fun MainScreen(
+    viewModel: MainViewModel = viewModel(),
+    onNavigateToDownloadManager: () -> Unit = {}
+) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -131,6 +135,13 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh"
+                        )
+                    }
+                    
+                    IconButton(onClick = onNavigateToDownloadManager) {
+                        Icon(
+                            imageVector = Icons.Default.Download,
+                            contentDescription = "Downloads"
                         )
                     }
                     

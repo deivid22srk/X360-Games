@@ -1,5 +1,6 @@
 package com.x360games.archivedownloader
 
+import android.content.Intent
 import android.os.Build
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -17,7 +18,9 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.core.view.WindowCompat
-import com.x360games.archivedownloader.ui.screens.MainScreen
+import androidx.navigation.compose.rememberNavController
+import com.x360games.archivedownloader.navigation.NavigationGraph
+import com.x360games.archivedownloader.service.DownloadService
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -25,13 +28,19 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         WindowCompat.setDecorFitsSystemWindows(window, false)
         
+        val intent = Intent(this, DownloadService::class.java).apply {
+            action = DownloadService.ACTION_RESUME_ALL
+        }
+        startService(intent)
+        
         setContent {
             X360GamesTheme {
                 Surface(
                     modifier = Modifier.fillMaxSize(),
                     color = MaterialTheme.colorScheme.background
                 ) {
-                    MainScreen()
+                    val navController = rememberNavController()
+                    NavigationGraph(navController = navController)
                 }
             }
         }
