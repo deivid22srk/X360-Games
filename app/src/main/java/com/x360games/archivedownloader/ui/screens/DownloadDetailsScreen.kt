@@ -19,7 +19,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -227,11 +226,11 @@ fun HeroProgressCard(download: DownloadEntity) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                     )
-                </Column>
+                }
                 
                 Spacer(modifier = Modifier.width(16.dp))
                 
-                StatusChip(download.status)
+                DetailsStatusChip(download.status)
             }
             
             Box(
@@ -239,7 +238,7 @@ fun HeroProgressCard(download: DownloadEntity) {
                 contentAlignment = Alignment.Center
             ) {
                 CircularProgressIndicator(
-                    progress = animatedProgress,
+                    progress = { animatedProgress },
                     modifier = Modifier.size(120.dp),
                     strokeWidth = 8.dp,
                     color = MaterialTheme.colorScheme.primary,
@@ -330,7 +329,11 @@ fun HeroProgressCard(download: DownloadEntity) {
 }
 
 @Composable
-fun InfoChip(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, subtitle: String) {
+fun InfoChip(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    subtitle: String
+) {
     Surface(
         color = MaterialTheme.colorScheme.surface,
         shape = RoundedCornerShape(12.dp)
@@ -382,7 +385,7 @@ fun FileInfoSection(download: DownloadEntity) {
                 color = MaterialTheme.colorScheme.onSurface
             )
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             
             DetailRow(
                 icon = Icons.Default.InsertDriveFile,
@@ -401,7 +404,7 @@ fun FileInfoSection(download: DownloadEntity) {
             )
             
             if (download.status == DownloadStatus.FAILED && download.errorMessage != null) {
-                Divider(color = MaterialTheme.colorScheme.outlineVariant)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 
                 Surface(
                     color = MaterialTheme.colorScheme.errorContainer,
@@ -509,7 +512,7 @@ fun SpeedGraphCard(speedHistory: List<SpeedHistoryEntity>) {
                 }
             }
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             
             if (speedHistory.isEmpty()) {
                 Box(
@@ -584,7 +587,11 @@ fun SpeedGraphCard(speedHistory: List<SpeedHistoryEntity>) {
 }
 
 @Composable
-fun SpeedStat(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, value: String) {
+fun SpeedStat(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    label: String,
+    value: String
+) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -628,7 +635,7 @@ fun StatisticsSection(download: DownloadEntity) {
                 color = MaterialTheme.colorScheme.onSurface
             )
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             
             val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
             
@@ -686,7 +693,7 @@ fun ActionsSection(
                 color = MaterialTheme.colorScheme.onSurface
             )
             
-            Divider(color = MaterialTheme.colorScheme.outlineVariant)
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             
             when (download.status) {
                 DownloadStatus.DOWNLOADING -> {
@@ -777,10 +784,10 @@ fun ActionsSection(
 }
 
 @Composable
-fun StatusChip(status: DownloadStatus) {
+fun DetailsStatusChip(status: DownloadStatus) {
     val (containerColor, contentColor, text, icon) = when (status) {
         DownloadStatus.DOWNLOADING -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.primaryContainer,
                 MaterialTheme.colorScheme.onPrimaryContainer,
                 "Downloading",
@@ -788,7 +795,7 @@ fun StatusChip(status: DownloadStatus) {
             )
         }
         DownloadStatus.PAUSED -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.tertiaryContainer,
                 MaterialTheme.colorScheme.onTertiaryContainer,
                 "Paused",
@@ -796,7 +803,7 @@ fun StatusChip(status: DownloadStatus) {
             )
         }
         DownloadStatus.COMPLETED -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.secondaryContainer,
                 MaterialTheme.colorScheme.onSecondaryContainer,
                 "Completed",
@@ -804,7 +811,7 @@ fun StatusChip(status: DownloadStatus) {
             )
         }
         DownloadStatus.FAILED -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.errorContainer,
                 MaterialTheme.colorScheme.onErrorContainer,
                 "Failed",
@@ -812,7 +819,7 @@ fun StatusChip(status: DownloadStatus) {
             )
         }
         DownloadStatus.CANCELLED -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.surfaceVariant,
                 MaterialTheme.colorScheme.onSurfaceVariant,
                 "Cancelled",
@@ -820,7 +827,7 @@ fun StatusChip(status: DownloadStatus) {
             )
         }
         DownloadStatus.QUEUED -> {
-            Quadruple(
+            QuadrupleValue(
                 MaterialTheme.colorScheme.tertiaryContainer,
                 MaterialTheme.colorScheme.onTertiaryContainer,
                 "Queued",
@@ -870,4 +877,9 @@ private fun formatDuration(seconds: Long): String {
     }
 }
 
-data class Quadruple<A, B, C, D>(val first: A, val second: B, val third: C, val fourth: D)
+data class QuadrupleValue<A, B, C, D>(
+    val first: A,
+    val second: B,
+    val third: C,
+    val fourth: D
+)
