@@ -6,7 +6,7 @@ import kotlinx.coroutines.flow.Flow
 @Dao
 interface SpeedHistoryDao {
     
-    @Query("SELECT * FROM speed_history WHERE downloadId = :downloadId ORDER BY timestamp ASC")
+    @Query("SELECT * FROM speed_history WHERE downloadId = :downloadId ORDER BY timestamp DESC LIMIT 100")
     fun getSpeedHistoryForDownload(downloadId: Long): Flow<List<SpeedHistoryEntity>>
     
     @Query("SELECT * FROM speed_history WHERE downloadId = :downloadId ORDER BY timestamp DESC LIMIT :limit")

@@ -23,10 +23,9 @@ sealed class Screen(val route: String) {
 }
 
 @Composable
-fun NavigationGraph(
-    navController: NavHostController,
-    downloadViewModel: DownloadViewModel = viewModel()
-) {
+fun NavigationGraph(navController: NavHostController) {
+    val downloadViewModel: DownloadViewModel = viewModel()
+    
     NavHost(
         navController = navController,
         startDestination = Screen.Main.route
@@ -65,16 +64,15 @@ fun NavigationGraph(
             )
         ) { backStackEntry ->
             val downloadId = backStackEntry.arguments?.getLong("downloadId") ?: 0L
-            val download by downloadViewModel.getDownloadById(downloadId).collectAsState()
-            val speedHistory by downloadViewModel.getSpeedHistoryForDownload(downloadId).collectAsState()
             
             DownloadDetailsScreen(
-                download = download,
-                speedHistory = speedHistory,
+                downloadId = downloadId,
                 onNavigateBack = {
                     navController.popBackStack()
-                }
+                },
+                downloadViewModel = downloadViewModel
             )
         }
     }
 }
+

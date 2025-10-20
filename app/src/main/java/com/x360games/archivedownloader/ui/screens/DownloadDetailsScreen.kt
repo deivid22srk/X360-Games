@@ -1,10 +1,7 @@
 package com.x360games.archivedownloader.ui.screens
 
 import android.content.Intent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.*
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -23,6 +20,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.patrykandpatrick.vico.compose.axis.horizontal.rememberBottomAxis
 import com.patrykandpatrick.vico.compose.axis.vertical.rememberStartAxis
 import com.patrykandpatrick.vico.compose.chart.Chart
@@ -34,17 +32,20 @@ import com.x360games.archivedownloader.database.DownloadStatus
 import com.x360games.archivedownloader.database.SpeedHistoryEntity
 import com.x360games.archivedownloader.service.DownloadService
 import com.x360games.archivedownloader.utils.FileUtils
+import com.x360games.archivedownloader.viewmodel.DownloadViewModel
 import java.text.SimpleDateFormat
 import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DownloadDetailsScreen(
-    download: DownloadEntity?,
-    speedHistory: List<SpeedHistoryEntity>,
-    onNavigateBack: () -> Unit
+    downloadId: Long,
+    onNavigateBack: () -> Unit,
+    downloadViewModel: DownloadViewModel = viewModel()
 ) {
     val scrollState = rememberScrollState()
+    val download by downloadViewModel.getDownloadById(downloadId).collectAsState()
+    val speedHistory by downloadViewModel.getSpeedHistoryForDownload(downloadId).collectAsState()
     
     Scaffold(
         topBar = {
@@ -62,28 +63,74 @@ fun DownloadDetailsScreen(
             )
         }
     ) { padding ->
-        AnimatedVisibility(
-            visible = download == null,
-            enter = fadeIn(),
-            exit = fadeOut()
+        download?.let { downloadEntity ->
+            Column(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding)
+                    .verticalScroll(scrollState)
+                    .padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                HeroProgressCard(downloadEntity)
+                
+                FileInfoSection(downloadEntity)
+                
+                if (speedHistory.isNotEmpty()) {
+                    SpeedGraphCard(speedHistory)
+                }
+                
+                StatisticsSection(downloadEntity)
+                
+                ActionsSection(
+                    download = downloadEntity,
+                    onPause = {
+                        val context = LocalContext.current
+                        val intent = Intent(context, DownloadService::class.java).apply {
+                            action = DownloadService.ACTION_PAUSE_DOWNLOAD
+                            putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
+                        }
+                        context.startService(intent)
+                    },
+                    onResume = {
+                        val context = LocalContext.current
+                        val intent = Intent(context, DownloadService::class.java).apply {
+                            action = DownloadService.ACTION_RESUME_DOWNLOAD
+                            putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
+                        }
+                        context.startService(intent)
+                    },
+                    onCancel = {
+                        val context = LocalContext.current
+                        val intent = Intent(context, DownloadService::class.java).apply {
+                            action = DownloadService.ACTION_CANCEL_DOWNLOAD
+                            putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
+                        }
+                        context.startService(intent)
+                        onNavigateBack()
+                    }
+                )
+                
+                Spacer(modifier = Modifier.height(16.dp))
+            }
+        } ?: Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(padding),
+            contentAlignment = Alignment.Center
         ) {
-            LoadingState(modifier = Modifier.padding(padding))
-        }
-        
-        AnimatedVisibility(
-            visible = download != null,
-            enter = fadeIn(),
-            exit = fadeOut()
-        ) {
-            download?.let {
-                DownloadDetailsContent(
-                    download = it,
-                    speedHistory = speedHistory,
-                    modifier = Modifier
-                        .fillMaxSize()
-                        .padding(padding)
-                        .verticalScroll(scrollState)
-                        .padding(16.dp)
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(48.dp),
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    "Loading download details...",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
                 )
             }
         }
@@ -91,84 +138,12 @@ fun DownloadDetailsScreen(
 }
 
 @Composable
-fun LoadingState(modifier: Modifier = Modifier) {
-    Box(
-        modifier = modifier.fillMaxSize(),
-        contentAlignment = Alignment.Center
-    ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.spacedBy(16.dp)
-        ) {
-            CircularProgressIndicator(
-                modifier = Modifier.size(48.dp),
-                color = MaterialTheme.colorScheme.primary
-            )
-            Text(
-                "Loading download details...",
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
-            )
-        }
-    }
-}
-
-@Composable
-fun DownloadDetailsContent(
-    download: DownloadEntity,
-    speedHistory: List<SpeedHistoryEntity>,
-    modifier: Modifier = Modifier
-) {
-    val context = LocalContext.current
-    
-    Column(
-        modifier = modifier,
-        verticalArrangement = Arrangement.spacedBy(16.dp)
-    ) {
-        HeroProgressCard(download)
-        
-        FileInfoSection(download)
-        
-        if (speedHistory.isNotEmpty()) {
-            SpeedGraphCard(speedHistory)
-        }
-        
-        StatisticsSection(download)
-        
-        ActionsSection(
-            download = download,
-            onPause = {
-                val intent = Intent(context, DownloadService::class.java).apply {
-                    action = DownloadService.ACTION_PAUSE_DOWNLOAD
-                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
-                }
-                context.startService(intent)
-            },
-            onResume = {
-                val intent = Intent(context, DownloadService::class.java).apply {
-                    action = DownloadService.ACTION_RESUME_DOWNLOAD
-                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
-                }
-                context.startService(intent)
-            },
-            onCancel = {
-                val intent = Intent(context, DownloadService::class.java).apply {
-                    action = DownloadService.ACTION_CANCEL_DOWNLOAD
-                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
-                }
-                context.startService(intent)
-            }
-        )
-        
-        Spacer(modifier = Modifier.height(16.dp))
-    }
-}
-
-@Composable
 fun HeroProgressCard(download: DownloadEntity) {
-    val progress = if (download.totalBytes > 0) {
-        (download.downloadedBytes.toFloat() / download.totalBytes.toFloat())
-    } else 0f
+    val progress = remember(download.downloadedBytes, download.totalBytes) {
+        if (download.totalBytes > 0) {
+            (download.downloadedBytes.toFloat() / download.totalBytes.toFloat())
+        } else 0f
+    }
     
     val animatedProgress by animateFloatAsState(
         targetValue = progress,
@@ -539,9 +514,15 @@ fun SpeedGraphCard(speedHistory: List<SpeedHistoryEntity>) {
                     }
                 }
             } else {
-                val chartData = speedHistory.takeLast(50).map { it.speed / 1024f / 1024f }
-                val maxSpeed = speedHistory.maxOfOrNull { it.speed } ?: 1
-                val avgSpeed = speedHistory.map { it.speed }.average().toLong()
+                val chartData = remember(speedHistory) {
+                    speedHistory.reversed().takeLast(50).map { it.speed / 1024f / 1024f }
+                }
+                val maxSpeed = remember(speedHistory) {
+                    speedHistory.maxOfOrNull { it.speed } ?: 1
+                }
+                val avgSpeed = remember(speedHistory) {
+                    if (speedHistory.isEmpty()) 0L else speedHistory.map { it.speed }.average().toLong()
+                }
                 
                 Box(
                     modifier = Modifier
@@ -637,7 +618,7 @@ fun StatisticsSection(download: DownloadEntity) {
             
             HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
             
-            val dateFormat = SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault())
+            val dateFormat = remember { SimpleDateFormat("dd/MM/yyyy HH:mm:ss", Locale.getDefault()) }
             
             DetailRow(
                 icon = Icons.Default.Schedule,
@@ -650,7 +631,9 @@ fun StatisticsSection(download: DownloadEntity) {
                 value = dateFormat.format(Date(download.lastUpdateTime))
             )
             
-            val elapsedTime = (download.lastUpdateTime - download.startTime) / 1000
+            val elapsedTime = remember(download.lastUpdateTime, download.startTime) {
+                (download.lastUpdateTime - download.startTime) / 1000
+            }
             DetailRow(
                 icon = Icons.Default.Timer,
                 label = "Elapsed Time",
@@ -658,7 +641,9 @@ fun StatisticsSection(download: DownloadEntity) {
             )
             
             if (download.downloadedBytes > 0 && elapsedTime > 0) {
-                val avgSpeed = download.downloadedBytes / elapsedTime
+                val avgSpeed = remember(download.downloadedBytes, elapsedTime) {
+                    download.downloadedBytes / elapsedTime
+                }
                 DetailRow(
                     icon = Icons.Default.Speed,
                     label = "Average Speed",
@@ -676,6 +661,8 @@ fun ActionsSection(
     onResume: () -> Unit,
     onCancel: () -> Unit
 ) {
+    val context = LocalContext.current
+    
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.elevatedCardElevation(defaultElevation = 2.dp)
@@ -702,7 +689,13 @@ fun ActionsSection(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         FilledTonalButton(
-                            onClick = onPause,
+                            onClick = {
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_PAUSE_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                                }
+                                context.startService(intent)
+                            },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 14.dp)
                         ) {
@@ -712,7 +705,14 @@ fun ActionsSection(
                         }
                         
                         OutlinedButton(
-                            onClick = onCancel,
+                            onClick = {
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_CANCEL_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                                }
+                                context.startService(intent)
+                                onCancel()
+                            },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 14.dp)
                         ) {
@@ -728,7 +728,13 @@ fun ActionsSection(
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Button(
-                            onClick = onResume,
+                            onClick = {
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_RESUME_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                                }
+                                context.startService(intent)
+                            },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 14.dp)
                         ) {
@@ -738,7 +744,14 @@ fun ActionsSection(
                         }
                         
                         OutlinedButton(
-                            onClick = onCancel,
+                            onClick = {
+                                val intent = Intent(context, DownloadService::class.java).apply {
+                                    action = DownloadService.ACTION_CANCEL_DOWNLOAD
+                                    putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                                }
+                                context.startService(intent)
+                                onCancel()
+                            },
                             modifier = Modifier.weight(1f),
                             contentPadding = PaddingValues(vertical = 14.dp)
                         ) {
@@ -750,7 +763,14 @@ fun ActionsSection(
                 }
                 DownloadStatus.QUEUED -> {
                     OutlinedButton(
-                        onClick = onCancel,
+                        onClick = {
+                            val intent = Intent(context, DownloadService::class.java).apply {
+                                action = DownloadService.ACTION_CANCEL_DOWNLOAD
+                                putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                            }
+                            context.startService(intent)
+                            onCancel()
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         contentPadding = PaddingValues(vertical = 14.dp)
                     ) {

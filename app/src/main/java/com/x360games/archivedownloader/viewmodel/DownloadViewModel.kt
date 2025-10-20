@@ -20,7 +20,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     val allDownloads: StateFlow<List<DownloadEntity>> = downloadDao.getAllDownloads()
         .stateIn(
             viewModelScope,
-            SharingStarted.WhileSubscribed(5000),
+            SharingStarted.Eagerly,
             emptyList()
         )
     
@@ -28,7 +28,7 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         return downloadDao.getDownloadById(downloadId)
             .stateIn(
                 viewModelScope,
-                SharingStarted.WhileSubscribed(5000),
+                SharingStarted.Eagerly,
                 null
             )
     }
@@ -37,9 +37,13 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
         return speedHistoryDao.getSpeedHistoryForDownload(downloadId)
             .stateIn(
                 viewModelScope,
-                SharingStarted.WhileSubscribed(5000),
+                SharingStarted.Eagerly,
                 emptyList()
             )
+    }
+    
+    suspend fun getDownloadByIdDirect(downloadId: Long): DownloadEntity? {
+        return downloadDao.getDownloadByIdSync(downloadId)
     }
     
     fun clearFinishedDownloads() {

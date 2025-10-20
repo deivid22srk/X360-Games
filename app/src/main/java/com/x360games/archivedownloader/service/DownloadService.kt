@@ -184,6 +184,8 @@ class DownloadService : Service() {
                 
                 database.downloadDao().updateStatus(downloadId, DownloadStatus.DOWNLOADING)
                 
+                var lastHistoryUpdate = 0L
+                
                 val result = repository.downloadFileResumable(
                     fileUrl = download.fileUrl,
                     destinationPath = download.destinationPath,
@@ -198,13 +200,17 @@ class DownloadService : Service() {
                                 System.currentTimeMillis()
                             )
                             
-                            database.speedHistoryDao().insertSpeedEntry(
-                                SpeedHistoryEntity(
-                                    downloadId = downloadId,
-                                    timestamp = System.currentTimeMillis(),
-                                    speed = speed
+                            val currentTime = System.currentTimeMillis()
+                            if (currentTime - lastHistoryUpdate >= 2000) {
+                                database.speedHistoryDao().insertSpeedEntry(
+                                    SpeedHistoryEntity(
+                                        downloadId = downloadId,
+                                        timestamp = currentTime,
+                                        speed = speed
+                                    )
                                 )
-                            )
+                                lastHistoryUpdate = currentTime
+                            }
                             
                             updateDownloadState(downloadId, downloadedBytes, speed, download.totalBytes)
                             updateNotification(downloadId, download.fileName, downloadedBytes, download.totalBytes, speed)
