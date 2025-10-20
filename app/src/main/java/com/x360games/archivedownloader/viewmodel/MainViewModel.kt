@@ -91,6 +91,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         null
     )
     
+    val concurrentDownloads = preferencesManager.concurrentDownloads.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        1
+    )
+    
+    val setupCompleted = preferencesManager.setupCompleted.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        false
+    )
+    
     init {
         loadData()
         observeStoredCredentials()
@@ -247,6 +259,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateExtractionPath(path: String) {
         viewModelScope.launch {
             preferencesManager.saveExtractionPath(path)
+        }
+    }
+    
+    fun setConcurrentDownloads(count: Int) {
+        viewModelScope.launch {
+            preferencesManager.setConcurrentDownloads(count)
+        }
+    }
+    
+    fun completeSetup() {
+        viewModelScope.launch {
+            preferencesManager.setSetupCompleted(true)
         }
     }
     

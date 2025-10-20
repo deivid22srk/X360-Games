@@ -12,9 +12,12 @@ import androidx.navigation.navArgument
 import com.x360games.archivedownloader.ui.screens.DownloadDetailsScreen
 import com.x360games.archivedownloader.ui.screens.DownloadManagerScreen
 import com.x360games.archivedownloader.ui.screens.MainScreen
+import com.x360games.archivedownloader.ui.screens.SetupScreen
 import com.x360games.archivedownloader.viewmodel.DownloadViewModel
+import com.x360games.archivedownloader.viewmodel.MainViewModel
 
 sealed class Screen(val route: String) {
+    object Setup : Screen("setup")
     object Main : Screen("main")
     object DownloadManager : Screen("download_manager")
     object DownloadDetails : Screen("download_details/{downloadId}") {
@@ -25,11 +28,27 @@ sealed class Screen(val route: String) {
 @Composable
 fun NavigationGraph(navController: NavHostController) {
     val downloadViewModel: DownloadViewModel = viewModel()
+    val mainViewModel: MainViewModel = viewModel()
+    val setupCompleted by mainViewModel.setupCompleted.collectAsState(initial = false)
     
     NavHost(
         navController = navController,
-        startDestination = Screen.Main.route
+        startDestination = if (setupCompleted) Screen.Main.route else Screen.Setup.route
     ) {
+        composable(Screen.Setup.route) {
+            SetupScreen(
+                onSetupComplete = {
+                    navController.navigate(Screen.Main.route) {
+                        popUpTo(Screen.Setup.route) { inclusive = true }
+                    }
+                },
+                onCompleteSetup = { downloadPath ->
+                    mainViewModel.updateDownloadPath(downloadPath)
+                    mainViewModel.completeSetup()
+                }
+            )
+        }
+        
         composable(Screen.Main.route) {
             MainScreen(
                 onNavigateToDownloadManager = {

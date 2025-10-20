@@ -1,0 +1,138 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="terms_title">Terms of Use and Disclaimer</string>
+    <string name="terms_content">
+        <![CDATA[
+<h2>TERMS OF USE AND DISCLAIMER</h2>
+<p><b>Last Updated: October 2025</b></p>
+
+<h3>1. ACCEPTANCE OF TERMS</h3>
+<p>By using X360 Games Downloader ("the Application"), you agree to be bound by these Terms of Use. If you do not agree to these terms, you must immediately uninstall and cease using the Application.</p>
+
+<h3>2. DESCRIPTION OF SERVICE</h3>
+<p>X360 Games Downloader is a third-party application that provides access to download files from the Internet Archive (archive.org). This Application is NOT affiliated with, endorsed by, or sponsored by Internet Archive, Microsoft, Xbox, or any game publishers.</p>
+
+<h3>3. USER RESPONSIBILITY</h3>
+<p>BY USING THIS APPLICATION, YOU ACKNOWLEDGE AND AGREE THAT:</p>
+<ul>
+    <li>You are solely responsible for any and all content you download through this Application</li>
+    <li>You must verify that you have the legal right to download and possess any content before downloading it</li>
+    <li>You must comply with all applicable local, state, national, and international laws and regulations</li>
+    <li>You must respect all intellectual property rights, copyrights, trademarks, and other proprietary rights</li>
+    <li>You are responsible for understanding and complying with copyright laws in your jurisdiction</li>
+    <li>Any legal consequences arising from your use of this Application are your sole responsibility</li>
+</ul>
+
+<h3>4. COPYRIGHT AND INTELLECTUAL PROPERTY</h3>
+<p><b>WARNING:</b> Downloading copyrighted content without proper authorization may be illegal in your jurisdiction. You must ensure that:</p>
+<ul>
+    <li>You own the original copy of any game you download</li>
+    <li>You have explicit permission from the copyright holder</li>
+    <li>The content is in the public domain or licensed for free distribution</li>
+    <li>Your use falls under fair use or similar exceptions in your jurisdiction</li>
+</ul>
+<p>The Application developers do NOT encourage, support, or condone piracy or copyright infringement of any kind.</p>
+
+<h3>5. INTERNET ARCHIVE TERMS</h3>
+<p>When using this Application, you are also subject to Internet Archive\'s Terms of Use and Privacy Policy. You must:</p>
+<ul>
+    <li>Have a valid Internet Archive account to download restricted content</li>
+    <li>Comply with Internet Archive\'s terms of service</li>
+    <li>Respect download limits and rate limiting</li>
+    <li>Not abuse or overload Internet Archive\'s services</li>
+</ul>
+
+<h3>6. DISCLAIMER OF WARRANTIES</h3>
+<p>THIS APPLICATION IS PROVIDED "AS IS" AND "AS AVAILABLE" WITHOUT ANY WARRANTIES OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO:</p>
+<ul>
+    <li>WARRANTIES OF MERCHANTABILITY</li>
+    <li>FITNESS FOR A PARTICULAR PURPOSE</li>
+    <li>NON-INFRINGEMENT</li>
+    <li>ACCURACY OR COMPLETENESS OF CONTENT</li>
+    <li>UNINTERRUPTED OR ERROR-FREE OPERATION</li>
+</ul>
+
+<h3>7. LIMITATION OF LIABILITY</h3>
+<p>TO THE MAXIMUM EXTENT PERMITTED BY LAW, THE APPLICATION DEVELOPERS SHALL NOT BE LIABLE FOR:</p>
+<ul>
+    <li>Any direct, indirect, incidental, special, consequential, or punitive damages</li>
+    <li>Loss of profits, data, or use</li>
+    <li>Legal actions, fines, or penalties resulting from your use of the Application</li>
+    <li>Damage to your device or loss of data</li>
+    <li>Any claims by third parties</li>
+    <li>Copyright infringement or violation of intellectual property rights</li>
+    <li>Violation of any laws or regulations</li>
+</ul>
+
+<h3>8. INDEMNIFICATION</h3>
+<p>You agree to indemnify, defend, and hold harmless the Application developers, contributors, and affiliates from any claims, damages, losses, liabilities, and expenses (including legal fees) arising from:</p>
+<ul>
+    <li>Your use or misuse of the Application</li>
+    <li>Your violation of these Terms</li>
+    <li>Your violation of any laws or regulations</li>
+    <li>Your infringement of any intellectual property or other rights</li>
+</ul>
+
+<h3>9. PROHIBITED USES</h3>
+<p>You agree NOT to use this Application to:</p>
+<ul>
+    <li>Download copyrighted content without authorization</li>
+    <li>Distribute, sell, or share downloaded content illegally</li>
+    <li>Circumvent digital rights management (DRM) or other protection mechanisms</li>
+    <li>Overload or damage Internet Archive servers</li>
+    <li>Violate any applicable laws or regulations</li>
+    <li>Infringe on the rights of others</li>
+</ul>
+
+<h3>10. DATA AND PRIVACY</h3>
+<p>The Application may store:</p>
+<ul>
+    <li>Your Internet Archive login cookies (stored locally on your device)</li>
+    <li>Download history and preferences</li>
+    <li>File paths and download settings</li>
+</ul>
+<p>This data is stored locally on your device and is not transmitted to the Application developers. However, your activity is subject to Internet Archive\'s privacy policy.</p>
+
+<h3>11. MODIFICATIONS</h3>
+<p>The Application developers reserve the right to modify or discontinue the Application at any time without notice. These Terms may be updated periodically, and continued use constitutes acceptance of any changes.</p>
+
+<h3>12. THIRD-PARTY SERVICES</h3>
+<p>This Application relies on third-party services (Internet Archive) which may change, become unavailable, or modify their terms at any time. The Application developers are not responsible for any changes or interruptions to third-party services.</p>
+
+<h3>13. LEGAL COMPLIANCE</h3>
+<p>You acknowledge that:</p>
+<ul>
+    <li>Copyright laws vary by country and jurisdiction</li>
+    <li>You are responsible for understanding applicable laws in your location</li>
+    <li>Some content may be legal to download in some jurisdictions but not others</li>
+    <li>Backup copies may be legal in some jurisdictions under specific conditions</li>
+    <li>You should consult legal counsel if you are unsure about the legality of any download</li>
+</ul>
+
+<h3>14. NO LEGAL ADVICE</h3>
+<p>Nothing in this Application or these Terms constitutes legal advice. For questions about copyright law, intellectual property, or the legality of downloading specific content, consult a qualified attorney in your jurisdiction.</p>
+
+<h3>15. SEVERABILITY</h3>
+<p>If any provision of these Terms is found to be unenforceable or invalid, that provision shall be limited or eliminated to the minimum extent necessary so that these Terms shall otherwise remain in full force and effect.</p>
+
+<h3>16. ENTIRE AGREEMENT</h3>
+<p>These Terms constitute the entire agreement between you and the Application developers regarding the use of the Application.</p>
+
+<h3>17. ACKNOWLEDGMENT</h3>
+<p>BY CLICKING "I ACCEPT" OR BY USING THIS APPLICATION, YOU ACKNOWLEDGE THAT:</p>
+<ul>
+    <li>You have read and understood these Terms</li>
+    <li>You agree to be bound by these Terms</li>
+    <li>You accept all risks and responsibilities associated with using this Application</li>
+    <li>You understand that the Application developers assume NO responsibility for your actions</li>
+    <li>You will use this Application in compliance with all applicable laws</li>
+    <li>You understand copyright law and your legal obligations</li>
+</ul>
+
+<p><b>IF YOU DO NOT AGREE TO THESE TERMS, DO NOT USE THIS APPLICATION.</b></p>
+
+<h3>CONTACT</h3>
+<p>For questions about these Terms, please visit: https://github.com/deivid22srk/X360-Games</p>
+        ]]>
+    </string>
+</resources>

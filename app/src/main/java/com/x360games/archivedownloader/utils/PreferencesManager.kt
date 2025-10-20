@@ -5,6 +5,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import kotlinx.coroutines.flow.Flow
@@ -19,6 +20,8 @@ class PreferencesManager(private val context: Context) {
         private val DOWNLOAD_PATH_KEY = stringPreferencesKey("download_path")
         private val AUTO_EXTRACT_KEY = booleanPreferencesKey("auto_extract")
         private val EXTRACTION_PATH_KEY = stringPreferencesKey("extraction_path")
+        private val SETUP_COMPLETED_KEY = booleanPreferencesKey("setup_completed")
+        private val CONCURRENT_DOWNLOADS_KEY = intPreferencesKey("concurrent_downloads")
     }
     
     val username: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -39,6 +42,14 @@ class PreferencesManager(private val context: Context) {
     
     val extractionPath: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[EXTRACTION_PATH_KEY]
+    }
+    
+    val setupCompleted: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[SETUP_COMPLETED_KEY] ?: false
+    }
+    
+    val concurrentDownloads: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[CONCURRENT_DOWNLOADS_KEY] ?: 1
     }
     
     suspend fun saveCredentials(username: String, cookies: String) {
@@ -70,6 +81,18 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveExtractionPath(path: String) {
         context.dataStore.edit { preferences ->
             preferences[EXTRACTION_PATH_KEY] = path
+        }
+    }
+    
+    suspend fun setSetupCompleted(completed: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[SETUP_COMPLETED_KEY] = completed
+        }
+    }
+    
+    suspend fun setConcurrentDownloads(count: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[CONCURRENT_DOWNLOADS_KEY] = count
         }
     }
 }

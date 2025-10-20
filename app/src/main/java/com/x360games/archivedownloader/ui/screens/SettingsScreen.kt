@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
+import androidx.compose.material.icons.filled.Queue
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -22,6 +23,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
@@ -47,6 +49,7 @@ fun SettingsScreen(
     val downloadPath by viewModel.downloadPath.collectAsState()
     val autoExtract by viewModel.autoExtract.collectAsState(initial = false)
     val extractionPath by viewModel.extractionPath.collectAsState()
+    val concurrentDownloads by viewModel.concurrentDownloads.collectAsState(initial = 1)
     
     val folderPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocumentTree()
@@ -116,6 +119,59 @@ fun SettingsScreen(
                     leadingContent = {
                         Icon(
                             imageVector = Icons.Default.Folder,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                
+                HorizontalDivider()
+                
+                ListItem(
+                    headlineContent = { Text("Concurrent Downloads") },
+                    supportingContent = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "$concurrentDownloads download(s) at the same time",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Additional downloads will be queued and start automatically when a slot becomes available",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Slider(
+                                value = concurrentDownloads.toFloat(),
+                                onValueChange = { value ->
+                                    scope.launch {
+                                        viewModel.setConcurrentDownloads(value.toInt())
+                                    }
+                                },
+                                valueRange = 1f..5f,
+                                steps = 3,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("1", style = MaterialTheme.typography.labelSmall)
+                                Text("2", style = MaterialTheme.typography.labelSmall)
+                                Text("3", style = MaterialTheme.typography.labelSmall)
+                                Text("4", style = MaterialTheme.typography.labelSmall)
+                                Text("5", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Queue,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )

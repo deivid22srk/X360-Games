@@ -39,8 +39,10 @@ class DownloadService : Service() {
     
     private val activeDownloads = mutableMapOf<Long, Job>()
     private val downloadStates = MutableStateFlow<Map<Long, DownloadProgressState>>(emptyMap())
+    private val queuedDownloads = mutableListOf<Long>()
     
     private var isForeground = false
+    private var maxConcurrentDownloads = 1
     
     companion object {
         const val CHANNEL_ID = "download_service_channel"
@@ -73,6 +75,10 @@ class DownloadService : Service() {
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         preferencesManager = PreferencesManager(applicationContext)
         rarExtractor = RarExtractor(applicationContext)
+        
+        serviceScope.launch {
+            maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+        }
         
         createNotificationChannel()
         resumeIncompleteDownloads()
@@ -183,6 +189,22 @@ class DownloadService : Service() {
     private fun startDownload(downloadId: Long) {
         if (activeDownloads.containsKey(downloadId)) return
         
+        serviceScope.launch {
+            maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+        }
+        
+        if (activeDownloads.size >= maxConcurrentDownloads) {
+            if (!queuedDownloads.contains(downloadId)) {
+                queuedDownloads.add(downloadId)
+                serviceScope.launch {
+                    database.downloadDao().updateStatus(downloadId, DownloadStatus.QUEUED)
+                }
+            }
+            return
+        }
+        
+        queuedDownloads.remove(downloadId)
+        
         startForeground()
         
         val job = serviceScope.launch {
@@ -256,6 +278,7 @@ class DownloadService : Service() {
             } finally {
                 activeDownloads.remove(downloadId)
                 removeDownloadState(downloadId)
+                processQueue()
                 checkStopService()
             }
         }
@@ -263,9 +286,21 @@ class DownloadService : Service() {
         activeDownloads[downloadId] = job
     }
     
+    private fun processQueue() {
+        serviceScope.launch {
+            maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+        }
+        
+        while (activeDownloads.size < maxConcurrentDownloads && queuedDownloads.isNotEmpty()) {
+            val nextDownloadId = queuedDownloads.removeAt(0)
+            startDownload(nextDownloadId)
+        }
+    }
+    
     private fun pauseDownload(downloadId: Long) {
         activeDownloads[downloadId]?.cancel()
         activeDownloads.remove(downloadId)
+        queuedDownloads.remove(downloadId)
         serviceScope.launch {
             val download = database.downloadDao().getDownloadByIdSync(downloadId)
             database.downloadDao().updateStatus(downloadId, DownloadStatus.PAUSED)
@@ -273,6 +308,7 @@ class DownloadService : Service() {
                 showPausedNotification(downloadId, it.notificationId, it.fileName)
             }
             removeDownloadState(downloadId)
+            processQueue()
             checkStopService()
         }
     }
@@ -308,6 +344,7 @@ class DownloadService : Service() {
     private fun cancelDownload(downloadId: Long) {
         activeDownloads[downloadId]?.cancel()
         activeDownloads.remove(downloadId)
+        queuedDownloads.remove(downloadId)
         
         serviceScope.launch {
             val download = database.downloadDao().getDownloadByIdSync(downloadId)
@@ -324,6 +361,7 @@ class DownloadService : Service() {
                 database.downloadDao().updateStatus(downloadId, DownloadStatus.CANCELLED)
                 notificationManager.cancel(it.notificationId)
             }
+            processQueue()
         }
     }
     
