@@ -111,11 +111,6 @@ fun MainScreen(
                 ),
                 actions = {
                     if (isLoggedIn) {
-                        Text(
-                            text = username ?: "",
-                            modifier = Modifier.padding(horizontal = 8.dp),
-                            style = MaterialTheme.typography.bodyMedium
-                        )
                         IconButton(onClick = { viewModel.logout() }) {
                             Icon(
                                 imageVector = Icons.Default.Logout,
@@ -131,7 +126,7 @@ fun MainScreen(
                         }
                     }
                     
-                    IconButton(onClick = { viewModel.loadData() }) {
+                    IconButton(onClick = { viewModel.loadData(forceRefresh = true) }) {
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh"

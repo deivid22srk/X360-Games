@@ -3,8 +3,10 @@ package com.x360games.archivedownloader.viewmodel
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.x360games.archivedownloader.cache.CacheManager
 import com.x360games.archivedownloader.data.ArchiveFile
 import com.x360games.archivedownloader.data.ArchiveItem
 import com.x360games.archivedownloader.data.DownloadItem
@@ -32,6 +34,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     private val repository = ArchiveRepository(application)
     private val preferencesManager = PreferencesManager(application)
     private val notificationHelper = NotificationHelper(application)
+    private val cacheManager = CacheManager(application)
     
     private val _uiState = MutableStateFlow<UiState>(UiState.Loading)
     val uiState: StateFlow<UiState> = _uiState.asStateFlow()
@@ -95,8 +98,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun loadData() {
+    fun loadData(forceRefresh: Boolean = false) {
         viewModelScope.launch {
+            if (!forceRefresh) {
+                val cachedItems = cacheManager.getCachedItems()
+                if (cachedItems != null && cachedItems.isNotEmpty()) {
+                    allItems = cachedItems
+                    _filteredItems.value = allItems
+                    _uiState.value = UiState.Success(allItems)
+                    return@launch
+                }
+            }
+            
             _uiState.value = UiState.Loading
             
             val collectionResult = repository.getX360Collection()
@@ -112,6 +125,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 allItems = itemsResult.getOrNull()!!
                 _filteredItems.value = allItems
                 _uiState.value = UiState.Success(allItems)
+                
+                cacheManager.cacheItems(allItems)
             } else {
                 _uiState.value = UiState.Error(itemsResult.exceptionOrNull()?.message ?: "Unknown error")
             }
@@ -149,7 +164,13 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
         
         val destinationPath = if (customPath != null && customPath.startsWith("content://")) {
-            customPath
+            val treeUri = Uri.parse(customPath)
+            val docFile = DocumentFile.fromTreeUri(getApplication(), treeUri)
+            val newFile = docFile?.findFile(file.name) ?: docFile?.createFile("application/octet-stream", file.name)
+            newFile?.uri?.toString() ?: run {
+                val defaultDir = FileUtils.getDefaultDownloadDirectory(getApplication())
+                File(defaultDir, file.name).absolutePath
+            }
         } else {
             val defaultDir = FileUtils.getDefaultDownloadDirectory(getApplication())
             File(defaultDir, file.name).absolutePath

@@ -167,6 +167,12 @@ class ArchiveRepository(private val context: Context) {
         onProgress: (downloadedBytes: Long, speed: Long) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
+            if (destinationPath.startsWith("content://")) {
+                return@withContext downloadFileResumableUri(
+                    fileUrl, destinationPath, existingBytes, cookie, onProgress
+                )
+            }
+            
             val file = File(destinationPath)
             
             if (!file.parentFile?.exists()!!) {
@@ -225,6 +231,72 @@ class ArchiveRepository(private val context: Context) {
             Result.success(file.absolutePath)
         } catch (e: Exception) {
             Log.e("ArchiveRepository", "Error downloading file resumable", e)
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun downloadFileResumableUri(
+        fileUrl: String,
+        destinationUri: String,
+        existingBytes: Long = 0,
+        cookie: String? = null,
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val uri = Uri.parse(destinationUri)
+            
+            val response = if (existingBytes > 0) {
+                val rangeHeader = "bytes=$existingBytes-"
+                archiveApi.downloadFileWithRange(fileUrl, rangeHeader, cookie)
+            } else {
+                archiveApi.downloadFile(fileUrl, cookie)
+            }
+            
+            if (!response.isSuccessful) {
+                return@withContext Result.failure(Exception("Download failed: ${response.code()}"))
+            }
+            
+            val body = response.body() ?: return@withContext Result.failure(Exception("Empty response body"))
+            
+            val contentLength = response.headers()["Content-Length"]?.toLongOrNull() ?: body.contentLength()
+            val totalBytes = if (existingBytes > 0) existingBytes + contentLength else contentLength
+            var downloadedBytes = existingBytes
+            
+            var lastUpdateTime = System.currentTimeMillis()
+            var lastDownloadedBytes = downloadedBytes
+            
+            body.byteStream().use { input ->
+                context.contentResolver.openOutputStream(uri, if (existingBytes > 0) "wa" else "w")?.use { output ->
+                    val buffer = ByteArray(8192 * 4)
+                    var bytes = input.read(buffer)
+                    
+                    while (bytes >= 0) {
+                        output.write(buffer, 0, bytes)
+                        downloadedBytes += bytes
+                        
+                        val currentTime = System.currentTimeMillis()
+                        val timeDiff = currentTime - lastUpdateTime
+                        
+                        if (timeDiff >= 500) {
+                            val bytesDiff = downloadedBytes - lastDownloadedBytes
+                            val speed = if (timeDiff > 0) (bytesDiff * 1000) / timeDiff else 0
+                            
+                            onProgress(downloadedBytes, speed)
+                            
+                            lastUpdateTime = currentTime
+                            lastDownloadedBytes = downloadedBytes
+                        }
+                        
+                        bytes = input.read(buffer)
+                    }
+                    
+                    onProgress(downloadedBytes, 0)
+                } ?: return@withContext Result.failure(Exception("Could not open output stream"))
+            }
+            
+            Result.success(destinationUri)
+        } catch (e: Exception) {
+            Log.e("ArchiveRepository", "Error downloading file resumable URI", e)
             Result.failure(e)
         }
     }
