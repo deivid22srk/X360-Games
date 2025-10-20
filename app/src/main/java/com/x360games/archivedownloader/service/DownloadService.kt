@@ -255,8 +255,38 @@ class DownloadService : Service() {
         activeDownloads[downloadId]?.cancel()
         activeDownloads.remove(downloadId)
         serviceScope.launch {
+            val download = database.downloadDao().getDownloadByIdSync(downloadId)
             database.downloadDao().updateStatus(downloadId, DownloadStatus.PAUSED)
+            download?.let {
+                showPausedNotification(downloadId, it.notificationId, it.fileName)
+            }
+            removeDownloadState(downloadId)
+            checkStopService()
         }
+    }
+    
+    private fun showPausedNotification(downloadId: Long, notificationId: Int, fileName: String) {
+        val resumeIntent = Intent(this, DownloadService::class.java).apply {
+            action = ACTION_RESUME_DOWNLOAD
+            putExtra(EXTRA_DOWNLOAD_ID, downloadId)
+        }
+        val resumePendingIntent = PendingIntent.getService(
+            this,
+            notificationId,
+            resumeIntent,
+            PendingIntent.FLAG_IMMUTABLE or PendingIntent.FLAG_UPDATE_CURRENT
+        )
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Download Paused")
+            .setContentText(fileName)
+            .setSmallIcon(android.R.drawable.ic_media_pause)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .addAction(android.R.drawable.ic_media_play, "Resume", resumePendingIntent)
+            .build()
+        
+        notificationManager.notify(notificationId, notification)
     }
     
     private fun resumeDownload(downloadId: Long) {

@@ -10,6 +10,7 @@ import com.x360games.archivedownloader.data.X360Collection
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.async
 import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.ensureActive
 import kotlinx.coroutines.withContext
 import okhttp3.ResponseBody
 import retrofit2.Response
@@ -205,6 +206,8 @@ class ArchiveRepository(private val context: Context) {
                     var bytes = input.read(buffer)
                     
                     while (bytes >= 0) {
+                        ensureActive()
+                        
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
                         
@@ -271,6 +274,8 @@ class ArchiveRepository(private val context: Context) {
                     var bytes = input.read(buffer)
                     
                     while (bytes >= 0) {
+                        ensureActive()
+                        
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
                         

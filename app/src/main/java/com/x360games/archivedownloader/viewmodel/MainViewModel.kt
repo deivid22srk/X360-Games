@@ -3,6 +3,7 @@ package com.x360games.archivedownloader.viewmodel
 import android.app.Application
 import android.content.Intent
 import android.net.Uri
+import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
@@ -104,8 +105,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 val cachedItems = cacheManager.getCachedItems()
                 if (cachedItems != null && cachedItems.isNotEmpty()) {
                     allItems = cachedItems
-                    _filteredItems.value = allItems
+                    filterItems(_searchQuery.value)
                     _uiState.value = UiState.Success(allItems)
+                    Log.d("MainViewModel", "Loaded ${allItems.size} items from cache")
                     return@launch
                 }
             }
@@ -123,8 +125,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             
             if (itemsResult.isSuccess) {
                 allItems = itemsResult.getOrNull()!!
-                _filteredItems.value = allItems
+                filterItems(_searchQuery.value)
                 _uiState.value = UiState.Success(allItems)
+                Log.d("MainViewModel", "Loaded ${allItems.size} items from API")
                 
                 cacheManager.cacheItems(allItems)
             } else {
@@ -139,16 +142,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     }
     
     private fun filterItems(query: String) {
-        viewModelScope.launch {
-            _filteredItems.value = if (query.isBlank()) {
-                allItems
-            } else {
-                allItems.filter { item ->
-                    item.title.contains(query, ignoreCase = true) ||
-                    item.id.contains(query, ignoreCase = true)
-                }
+        val filtered = if (query.isBlank()) {
+            allItems
+        } else {
+            allItems.filter { item ->
+                item.title.contains(query, ignoreCase = true) ||
+                item.id.contains(query, ignoreCase = true)
             }
         }
+        _filteredItems.value = filtered
+        Log.d("MainViewModel", "Filtered items: ${filtered.size} out of ${allItems.size} (query: '$query')")
     }
     
     fun toggleItemExpansion(itemId: String) {
