@@ -46,6 +46,7 @@ fun DownloadDetailsScreen(
     val scrollState = rememberScrollState()
     val download by downloadViewModel.getDownloadById(downloadId).collectAsState()
     val speedHistory by downloadViewModel.getSpeedHistoryForDownload(downloadId).collectAsState()
+    val context = LocalContext.current
     
     Scaffold(
         topBar = {
@@ -85,7 +86,6 @@ fun DownloadDetailsScreen(
                 ActionsSection(
                     download = downloadEntity,
                     onPause = {
-                        val context = LocalContext.current
                         val intent = Intent(context, DownloadService::class.java).apply {
                             action = DownloadService.ACTION_PAUSE_DOWNLOAD
                             putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
@@ -93,7 +93,6 @@ fun DownloadDetailsScreen(
                         context.startService(intent)
                     },
                     onResume = {
-                        val context = LocalContext.current
                         val intent = Intent(context, DownloadService::class.java).apply {
                             action = DownloadService.ACTION_RESUME_DOWNLOAD
                             putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
@@ -101,7 +100,6 @@ fun DownloadDetailsScreen(
                         context.startService(intent)
                     },
                     onCancel = {
-                        val context = LocalContext.current
                         val intent = Intent(context, DownloadService::class.java).apply {
                             action = DownloadService.ACTION_CANCEL_DOWNLOAD
                             putExtra(DownloadService.EXTRA_DOWNLOAD_ID, downloadEntity.id)
