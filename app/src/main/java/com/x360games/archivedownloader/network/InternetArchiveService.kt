@@ -19,12 +19,4 @@ interface InternetArchiveService {
         @Url fileUrl: String,
         @Header("Cookie") cookie: String? = null
     ): Response<ResponseBody>
-    
-    @Streaming
-    @GET
-    suspend fun downloadFileWithRange(
-        @Url fileUrl: String,
-        @Header("Range") range: String,
-        @Header("Cookie") cookie: String? = null
-    ): Response<ResponseBody>
 }
