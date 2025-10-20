@@ -1,6 +1,7 @@
 package com.x360games.archivedownloader.viewmodel
 
 import android.app.Application
+import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.x360games.archivedownloader.data.ArchiveFile
@@ -141,7 +142,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun downloadFile(item: ArchiveItem, file: ArchiveFile, destinationDir: File) {
+    fun downloadFile(item: ArchiveItem, file: ArchiveFile, customPath: String? = null) {
         val downloadId = "${item.id}_${file.name}"
         val notificationId = downloadId.hashCode()
         
@@ -157,21 +158,40 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         viewModelScope.launch {
             val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
             
-            val result = repository.downloadFile(
-                fileUrl = fileUrl,
-                fileName = file.name,
-                destinationDir = destinationDir,
-                cookie = userCookies,
-                onProgress = { progress ->
-                    _downloads.value = _downloads.value + (downloadId to DownloadItem(
-                        id = downloadId,
-                        fileName = file.name,
-                        url = fileUrl,
-                        state = DownloadState.Downloading(progress, file.name)
-                    ))
-                    notificationHelper.showDownloadProgress(notificationId, file.name, progress)
-                }
-            )
+            val result = if (customPath != null && customPath.startsWith("content://")) {
+                repository.downloadFileToUri(
+                    fileUrl = fileUrl,
+                    fileName = file.name,
+                    destinationUri = Uri.parse(customPath),
+                    cookie = userCookies,
+                    onProgress = { progress ->
+                        _downloads.value = _downloads.value + (downloadId to DownloadItem(
+                            id = downloadId,
+                            fileName = file.name,
+                            url = fileUrl,
+                            state = DownloadState.Downloading(progress, file.name)
+                        ))
+                        notificationHelper.showDownloadProgress(notificationId, file.name, progress)
+                    }
+                ).map { it }
+            } else {
+                val defaultDir = FileUtils.getDefaultDownloadDirectory(getApplication())
+                repository.downloadFile(
+                    fileUrl = fileUrl,
+                    fileName = file.name,
+                    destinationDir = defaultDir,
+                    cookie = userCookies,
+                    onProgress = { progress ->
+                        _downloads.value = _downloads.value + (downloadId to DownloadItem(
+                            id = downloadId,
+                            fileName = file.name,
+                            url = fileUrl,
+                            state = DownloadState.Downloading(progress, file.name)
+                        ))
+                        notificationHelper.showDownloadProgress(notificationId, file.name, progress)
+                    }
+                ).map { it.absolutePath }
+            }
             
             _downloads.value = _downloads.value + (downloadId to DownloadItem(
                 id = downloadId,
@@ -179,7 +199,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
                 url = fileUrl,
                 state = if (result.isSuccess) {
                     notificationHelper.showDownloadComplete(notificationId, file.name)
-                    DownloadState.Success(file.name, result.getOrNull()!!.absolutePath)
+                    DownloadState.Success(file.name, result.getOrNull()!!)
                 } else {
                     val errorMsg = result.exceptionOrNull()?.message ?: "Download failed"
                     notificationHelper.showDownloadError(notificationId, file.name, errorMsg)

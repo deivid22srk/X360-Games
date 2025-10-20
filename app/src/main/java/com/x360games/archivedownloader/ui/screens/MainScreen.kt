@@ -180,8 +180,7 @@ fun MainScreen(viewModel: MainViewModel = viewModel()) {
                                     }
                                     
                                     if (storagePermissionState?.status?.isGranted != false) {
-                                        val downloadDir = FileUtils.getDownloadDirectory(context, downloadPath)
-                                        viewModel.downloadFile(item, file, downloadDir)
+                                        viewModel.downloadFile(item, file, downloadPath)
                                     } else {
                                         storagePermissionState.launchPermissionRequest()
                                     }
