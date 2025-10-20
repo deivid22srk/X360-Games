@@ -93,6 +93,8 @@ dependencies {
     
     implementation("androidx.navigation:navigation-compose:2.7.7")
     
+    implementation("com.github.junrar:junrar:7.5.5")
+    
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

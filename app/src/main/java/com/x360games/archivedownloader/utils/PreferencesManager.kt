@@ -3,6 +3,7 @@ package com.x360games.archivedownloader.utils
 import android.content.Context
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -16,6 +17,8 @@ class PreferencesManager(private val context: Context) {
         private val USERNAME_KEY = stringPreferencesKey("username")
         private val COOKIES_KEY = stringPreferencesKey("cookies")
         private val DOWNLOAD_PATH_KEY = stringPreferencesKey("download_path")
+        private val AUTO_EXTRACT_KEY = booleanPreferencesKey("auto_extract")
+        private val EXTRACTION_PATH_KEY = stringPreferencesKey("extraction_path")
     }
     
     val username: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -28,6 +31,14 @@ class PreferencesManager(private val context: Context) {
     
     val downloadPath: Flow<String?> = context.dataStore.data.map { preferences ->
         preferences[DOWNLOAD_PATH_KEY]
+    }
+    
+    val autoExtract: Flow<Boolean> = context.dataStore.data.map { preferences ->
+        preferences[AUTO_EXTRACT_KEY] ?: false
+    }
+    
+    val extractionPath: Flow<String?> = context.dataStore.data.map { preferences ->
+        preferences[EXTRACTION_PATH_KEY]
     }
     
     suspend fun saveCredentials(username: String, cookies: String) {
@@ -47,6 +58,18 @@ class PreferencesManager(private val context: Context) {
     suspend fun saveDownloadPath(path: String) {
         context.dataStore.edit { preferences ->
             preferences[DOWNLOAD_PATH_KEY] = path
+        }
+    }
+    
+    suspend fun setAutoExtract(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[AUTO_EXTRACT_KEY] = enabled
+        }
+    }
+    
+    suspend fun saveExtractionPath(path: String) {
+        context.dataStore.edit { preferences ->
+            preferences[EXTRACTION_PATH_KEY] = path
         }
     }
 }

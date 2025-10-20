@@ -79,6 +79,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         null
     )
     
+    val autoExtract = preferencesManager.autoExtract.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        false
+    )
+    
+    val extractionPath = preferencesManager.extractionPath.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        null
+    )
+    
     init {
         loadData()
         observeStoredCredentials()
@@ -223,6 +235,18 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun updateDownloadPath(path: String) {
         viewModelScope.launch {
             preferencesManager.saveDownloadPath(path)
+        }
+    }
+    
+    fun setAutoExtract(enabled: Boolean) {
+        viewModelScope.launch {
+            preferencesManager.setAutoExtract(enabled)
+        }
+    }
+    
+    fun updateExtractionPath(path: String) {
+        viewModelScope.launch {
+            preferencesManager.saveExtractionPath(path)
         }
     }
     

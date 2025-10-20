@@ -18,6 +18,9 @@ import com.x360games.archivedownloader.database.DownloadStatus
 import com.x360games.archivedownloader.database.SpeedHistoryEntity
 import com.x360games.archivedownloader.network.ArchiveRepository
 import com.x360games.archivedownloader.utils.FileUtils
+import com.x360games.archivedownloader.utils.PreferencesManager
+import com.x360games.archivedownloader.utils.RarExtractor
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -31,6 +34,8 @@ class DownloadService : Service() {
     private lateinit var database: AppDatabase
     private lateinit var repository: ArchiveRepository
     private lateinit var notificationManager: NotificationManager
+    private lateinit var preferencesManager: PreferencesManager
+    private lateinit var rarExtractor: RarExtractor
     
     private val activeDownloads = mutableMapOf<Long, Job>()
     private val downloadStates = MutableStateFlow<Map<Long, DownloadProgressState>>(emptyMap())
@@ -66,6 +71,8 @@ class DownloadService : Service() {
         database = AppDatabase.getDatabase(applicationContext)
         repository = ArchiveRepository(applicationContext)
         notificationManager = getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        preferencesManager = PreferencesManager(applicationContext)
+        rarExtractor = RarExtractor(applicationContext)
         
         createNotificationChannel()
         resumeIncompleteDownloads()
@@ -222,6 +229,11 @@ class DownloadService : Service() {
                     onSuccess = { filePath ->
                         database.downloadDao().updateStatus(downloadId, DownloadStatus.COMPLETED)
                         showCompletionNotification(download.notificationId, download.fileName, true)
+                        
+                        val autoExtract = preferencesManager.autoExtract.first()
+                        if (autoExtract && download.fileName.endsWith(".rar", ignoreCase = true)) {
+                            extractRarFile(downloadId, filePath, download.fileName, download.notificationId)
+                        }
                     },
                     onFailure = { error ->
                         database.downloadDao().updateStatusWithError(
@@ -388,6 +400,80 @@ class DownloadService : Service() {
             
             notificationManager.notify(downloadEntity.notificationId, notification)
         }
+    }
+    
+    private fun extractRarFile(downloadId: Long, filePath: String, fileName: String, notificationId: Int) {
+        serviceScope.launch {
+            try {
+                showExtractionNotification(notificationId, fileName, 0, 0)
+                
+                val extractionPath = preferencesManager.extractionPath.first()
+                val destinationPath = extractionPath ?: run {
+                    if (filePath.startsWith("content://")) {
+                        filePath.substringBeforeLast("/")
+                    } else {
+                        File(filePath).parent ?: filePath
+                    }
+                }
+                
+                val result = rarExtractor.extractRarFile(
+                    rarFilePath = filePath,
+                    destinationPath = destinationPath,
+                    onProgress = { extractedFiles, totalFiles, currentFile ->
+                        showExtractionNotification(notificationId, fileName, extractedFiles, totalFiles)
+                    }
+                )
+                
+                result.fold(
+                    onSuccess = {
+                        showExtractionCompleteNotification(notificationId, fileName, true)
+                    },
+                    onFailure = { error ->
+                        showExtractionCompleteNotification(notificationId, fileName, false, error.message)
+                    }
+                )
+            } catch (e: Exception) {
+                showExtractionCompleteNotification(notificationId, fileName, false, e.message)
+            }
+        }
+    }
+    
+    private fun showExtractionNotification(notificationId: Int, fileName: String, extractedFiles: Int, totalFiles: Int) {
+        val text = if (totalFiles > 0) {
+            "Extracting... $extractedFiles/$totalFiles files"
+        } else {
+            "Starting extraction..."
+        }
+        
+        val progress = if (totalFiles > 0) ((extractedFiles * 100) / totalFiles) else 0
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Extracting $fileName")
+            .setContentText(text)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setProgress(100, progress, totalFiles == 0)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        
+        notificationManager.notify(notificationId + 10000, notification)
+    }
+    
+    private fun showExtractionCompleteNotification(notificationId: Int, fileName: String, success: Boolean, errorMessage: String? = null) {
+        notificationManager.cancel(notificationId + 10000)
+        
+        val title = if (success) "Extraction Complete" else "Extraction Failed"
+        val text = if (success) fileName else "$fileName: ${errorMessage ?: "Unknown error"}"
+        
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle(title)
+            .setContentText(text)
+            .setSmallIcon(if (success) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
+            .setAutoCancel(true)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .build()
+        
+        notificationManager.notify(notificationId, notification)
     }
     
     private fun showCompletionNotification(notificationId: Int, fileName: String, success: Boolean, errorMessage: String? = null) {
