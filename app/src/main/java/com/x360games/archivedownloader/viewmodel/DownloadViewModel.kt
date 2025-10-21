@@ -57,4 +57,12 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
             downloadDao.deleteDownloadById(downloadId)
         }
     }
+    
+    fun deleteDownloads(downloadIds: List<Long>) {
+        viewModelScope.launch {
+            downloadIds.forEach { downloadId ->
+                downloadDao.deleteDownloadById(downloadId)
+            }
+        }
+    }
 }

@@ -176,7 +176,7 @@ class ArchiveRepository(private val context: Context) {
         try {
             if (destinationPath.startsWith("content://")) {
                 return@withContext downloadFileResumableUri(
-                    fileUrl, destinationPath, existingBytes, cookie, onProgress
+                    fileUrl, destinationPath, existingBytes, cookie, parts, onProgress
                 )
             }
             
@@ -187,21 +187,35 @@ class ArchiveRepository(private val context: Context) {
             }
             
             if (parts <= 1 || existingBytes > 0) {
+                Log.d("ArchiveRepository", "Using single-part download. Parts=$parts, ExistingBytes=$existingBytes")
                 return@withContext downloadFileSinglePart(
                     fileUrl, destinationPath, existingBytes, cookie, onProgress
                 )
             }
             
+            Log.d("ArchiveRepository", "Checking server support for multi-part download...")
+            Log.d("ArchiveRepository", "URL: $fileUrl")
+            
             val headResponse = archiveApi.getFileInfo(fileUrl, cookie)
             val totalBytes = headResponse.headers()["Content-Length"]?.toLongOrNull() ?: 0L
             val acceptsRanges = headResponse.headers()["Accept-Ranges"]?.equals("bytes", ignoreCase = true) ?: false
+            val serverHeader = headResponse.headers()["Server"] ?: "Unknown"
+            
+            Log.d("ArchiveRepository", "Server Response Headers:")
+            Log.d("ArchiveRepository", "  - Content-Length: $totalBytes bytes")
+            Log.d("ArchiveRepository", "  - Accept-Ranges: ${headResponse.headers()["Accept-Ranges"]}")
+            Log.d("ArchiveRepository", "  - Server: $serverHeader")
+            Log.d("ArchiveRepository", "  - Content-Type: ${headResponse.headers()["Content-Type"]}")
             
             if (!acceptsRanges || totalBytes == 0L) {
-                Log.d("ArchiveRepository", "Server doesn't support ranges, falling back to single-part download")
+                Log.w("ArchiveRepository", "Server doesn't support ranges (acceptsRanges=$acceptsRanges, totalBytes=$totalBytes)")
+                Log.w("ArchiveRepository", "Falling back to single-part download")
                 return@withContext downloadFileSinglePart(
                     fileUrl, destinationPath, 0, cookie, onProgress
                 )
             }
+            
+            Log.d("ArchiveRepository", "Server supports ranges! Starting multi-part download with $parts parts...")
             
             return@withContext downloadFileMultiPart(
                 fileUrl, file, totalBytes, parts, cookie, onProgress
@@ -219,7 +233,8 @@ class ArchiveRepository(private val context: Context) {
         totalBytes: Long,
         parts: Int,
         cookie: String?,
-        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit,
+        onPartProgress: ((partIndex: Int, partBytes: Long, partTotal: Long) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val partSize = totalBytes / parts
@@ -227,6 +242,13 @@ class ArchiveRepository(private val context: Context) {
             val lastUpdateTime = AtomicLong(System.currentTimeMillis())
             val lastDownloadedBytes = AtomicLong(0)
             val progressMutex = Mutex()
+            val partProgressMap = mutableMapOf<Int, AtomicLong>()
+            (0 until parts).forEach { partProgressMap[it] = AtomicLong(0) }
+            
+            Log.d("ArchiveRepository", "=== Multi-Part Download Started ===")
+            Log.d("ArchiveRepository", "Total Size: ${totalBytes / 1024 / 1024} MB")
+            Log.d("ArchiveRepository", "Parts: $parts")
+            Log.d("ArchiveRepository", "Part Size: ${partSize / 1024 / 1024} MB each")
             
             RandomAccessFile(file, "rw").use { randomAccessFile ->
                 randomAccessFile.setLength(totalBytes)
@@ -235,6 +257,10 @@ class ArchiveRepository(private val context: Context) {
                     async {
                         val start = partIndex * partSize
                         val end = if (partIndex == parts - 1) totalBytes - 1 else (partIndex + 1) * partSize - 1
+                        
+                        Log.d("ArchiveRepository", "Part $partIndex: Range bytes=$start-$end (${(end - start) / 1024 / 1024} MB)")
+                        
+                        val partStartTime = System.currentTimeMillis()
                         
                         downloadPartWithRetry(
                             fileUrl = fileUrl,
@@ -247,12 +273,20 @@ class ArchiveRepository(private val context: Context) {
                             lastDownloadedBytes = lastDownloadedBytes,
                             progressMutex = progressMutex,
                             totalBytes = totalBytes,
-                            onProgress = onProgress
+                            onProgress = onProgress,
+                            partIndex = partIndex,
+                            partProgressMap = partProgressMap,
+                            onPartProgress = onPartProgress
                         )
+                        
+                        val partDuration = System.currentTimeMillis() - partStartTime
+                        val partSpeed = if (partDuration > 0) ((end - start) * 1000) / partDuration else 0
+                        Log.d("ArchiveRepository", "Part $partIndex completed in ${partDuration / 1000}s (${partSpeed / 1024} KB/s)")
                     }
                 }
                 
                 jobs.awaitAll()
+                Log.d("ArchiveRepository", "=== All parts downloaded successfully ===")
             }
             
             onProgress(totalBytes, 0)
@@ -276,6 +310,9 @@ class ArchiveRepository(private val context: Context) {
         progressMutex: Mutex,
         totalBytes: Long,
         onProgress: (downloadedBytes: Long, speed: Long) -> Unit,
+        partIndex: Int = -1,
+        partProgressMap: MutableMap<Int, AtomicLong>? = null,
+        onPartProgress: ((partIndex: Int, partBytes: Long, partTotal: Long) -> Unit)? = null,
         maxRetries: Int = 3
     ) {
         var attempt = 0
@@ -286,15 +323,17 @@ class ArchiveRepository(private val context: Context) {
                 downloadPart(
                     fileUrl, start, end, cookie, randomAccessFile,
                     downloadedBytesAtomic, lastUpdateTime, lastDownloadedBytes,
-                    progressMutex, totalBytes, onProgress
+                    progressMutex, totalBytes, onProgress, partIndex, partProgressMap, onPartProgress
                 )
                 return
             } catch (e: Exception) {
                 lastError = e
                 attempt++
                 if (attempt < maxRetries) {
-                    Log.w("ArchiveRepository", "Part download failed, retry $attempt/$maxRetries", e)
+                    Log.w("ArchiveRepository", "Part $partIndex download failed, retry $attempt/$maxRetries: ${e.message}")
                     kotlinx.coroutines.delay(1000L * attempt)
+                } else {
+                    Log.e("ArchiveRepository", "Part $partIndex failed after $maxRetries retries", e)
                 }
             }
         }
@@ -313,21 +352,37 @@ class ArchiveRepository(private val context: Context) {
         lastDownloadedBytes: AtomicLong,
         progressMutex: Mutex,
         totalBytes: Long,
-        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit,
+        partIndex: Int = -1,
+        partProgressMap: MutableMap<Int, AtomicLong>? = null,
+        onPartProgress: ((partIndex: Int, partBytes: Long, partTotal: Long) -> Unit)? = null
     ) {
         val rangeHeader = "bytes=$start-$end"
         val response = archiveApi.downloadFileWithRange(fileUrl, rangeHeader, cookie)
         
         if (!response.isSuccessful) {
-            throw Exception("Part download failed: ${response.code()}")
+            val errorMsg = "Part download failed: HTTP ${response.code()} - ${response.message()}"
+            Log.e("ArchiveRepository", errorMsg)
+            Log.e("ArchiveRepository", "Range: $rangeHeader")
+            throw Exception(errorMsg)
         }
         
         val body = response.body() ?: throw Exception("Empty response body for part")
+        val partTotal = end - start + 1
         
         body.byteStream().use { input ->
-            val buffer = ByteArray(8192 * 16)
+            val buffer = ByteArray(8192)
             var bytes: Int
             var currentPosition = start
+            
+            var currentSpeed = 0L
+            var speedSampleStart = System.currentTimeMillis()
+            var speedSampleBytes = 0L
+            
+            var lastSyncTime = System.currentTimeMillis()
+            var lastSyncBytes = currentPosition
+            val syncInterval = 2000L
+            val syncBytesThreshold = 65536L
             
             while (input.read(buffer).also { bytes = it } >= 0) {
                 coroutineContext.ensureActive()
@@ -338,24 +393,54 @@ class ArchiveRepository(private val context: Context) {
                 }
                 
                 currentPosition += bytes
+                speedSampleBytes += bytes
                 val totalDownloaded = downloadedBytesAtomic.addAndGet(bytes.toLong())
                 
-                val currentTime = System.currentTimeMillis()
-                val timeDiff = currentTime - lastUpdateTime.get()
+                if (partIndex >= 0 && partProgressMap != null) {
+                    val partDownloaded = partProgressMap[partIndex]?.addAndGet(bytes.toLong()) ?: 0L
+                    onPartProgress?.invoke(partIndex, partDownloaded, partTotal)
+                }
                 
-                if (timeDiff >= 500) {
+                val currentTime = System.currentTimeMillis()
+                val sampleDelta = currentTime - speedSampleStart
+                
+                if (sampleDelta > 500) {
+                    val sampleSpeed = (speedSampleBytes * 1000) / sampleDelta
+                    currentSpeed = if (currentSpeed == 0L) {
+                        sampleSpeed
+                    } else {
+                        ((currentSpeed * 3) + sampleSpeed) / 4
+                    }
+                    
+                    speedSampleStart = currentTime
+                    speedSampleBytes = 0
+                }
+                
+                val bytesSinceSync = currentPosition - lastSyncBytes
+                val timeSinceSync = currentTime - lastSyncTime
+                
+                if (bytesSinceSync >= syncBytesThreshold || timeSinceSync >= syncInterval) {
+                    synchronized(randomAccessFile) {
+                        randomAccessFile.fd.sync()
+                    }
+                    lastSyncTime = currentTime
+                    lastSyncBytes = currentPosition
+                    
                     progressMutex.withLock {
-                        if (System.currentTimeMillis() - lastUpdateTime.get() >= 500) {
-                            val bytesDiff = totalDownloaded - lastDownloadedBytes.get()
-                            val speed = if (timeDiff > 0) (bytesDiff * 1000) / timeDiff else 0
-                            
-                            onProgress(totalDownloaded, speed)
-                            
-                            lastUpdateTime.set(currentTime)
-                            lastDownloadedBytes.set(totalDownloaded)
-                        }
+                        val bytesDiff = totalDownloaded - lastDownloadedBytes.get()
+                        val timeDiff = currentTime - lastUpdateTime.get()
+                        val reportSpeed = if (timeDiff > 0) (bytesDiff * 1000) / timeDiff else currentSpeed
+                        
+                        onProgress(totalDownloaded, reportSpeed)
+                        
+                        lastUpdateTime.set(currentTime)
+                        lastDownloadedBytes.set(totalDownloaded)
                     }
                 }
+            }
+            
+            synchronized(randomAccessFile) {
+                randomAccessFile.fd.sync()
             }
         }
     }
@@ -370,7 +455,7 @@ class ArchiveRepository(private val context: Context) {
         try {
             if (destinationPath.startsWith("content://")) {
                 return@withContext downloadFileResumableUri(
-                    fileUrl, destinationPath, existingBytes, cookie, onProgress
+                    fileUrl, destinationPath, existingBytes, cookie, 1, onProgress
                 )
             }
             
@@ -380,16 +465,28 @@ class ArchiveRepository(private val context: Context) {
                 file.parentFile?.mkdirs()
             }
             
+            Log.d("ArchiveRepository", "=== Single-Part Download Started ===")
+            Log.d("ArchiveRepository", "URL: $fileUrl")
+            Log.d("ArchiveRepository", "Existing bytes: $existingBytes")
+            
             val response = if (existingBytes > 0 && file.exists()) {
                 val rangeHeader = "bytes=$existingBytes-"
+                Log.d("ArchiveRepository", "Resuming download with Range: $rangeHeader")
                 archiveApi.downloadFileWithRange(fileUrl, rangeHeader, cookie)
             } else {
+                Log.d("ArchiveRepository", "Starting new download")
                 archiveApi.downloadFile(fileUrl, cookie)
             }
             
             if (!response.isSuccessful) {
+                Log.e("ArchiveRepository", "Download failed: HTTP ${response.code()} - ${response.message()}")
                 return@withContext Result.failure(Exception("Download failed: ${response.code()}"))
             }
+            
+            Log.d("ArchiveRepository", "Response headers:")
+            Log.d("ArchiveRepository", "  - Content-Length: ${response.headers()["Content-Length"]}")
+            Log.d("ArchiveRepository", "  - Content-Range: ${response.headers()["Content-Range"]}")
+            Log.d("ArchiveRepository", "  - Server: ${response.headers()["Server"]}")
             
             val body = response.body() ?: return@withContext Result.failure(Exception("Empty response body"))
             
@@ -400,9 +497,13 @@ class ArchiveRepository(private val context: Context) {
             var lastUpdateTime = System.currentTimeMillis()
             var lastDownloadedBytes = downloadedBytes
             
+            Log.d("ArchiveRepository", "Total size: ${totalBytes / 1024 / 1024} MB")
+            
+            val downloadStartTime = System.currentTimeMillis()
+            
             body.byteStream().use { input ->
                 FileOutputStream(file, existingBytes > 0).use { output ->
-                    val buffer = ByteArray(8192 * 16)
+                    val buffer = ByteArray(8192 * 32)
                     var bytes: Int
                     var flushCounter = 0
                     
@@ -437,6 +538,10 @@ class ArchiveRepository(private val context: Context) {
                 }
             }
             
+            val downloadDuration = System.currentTimeMillis() - downloadStartTime
+            val avgSpeed = if (downloadDuration > 0) ((downloadedBytes - existingBytes) * 1000) / downloadDuration else 0
+            Log.d("ArchiveRepository", "=== Download completed in ${downloadDuration / 1000}s (Avg: ${avgSpeed / 1024} KB/s) ===")
+            
             Result.success(file.absolutePath)
         } catch (e: Exception) {
             Log.e("ArchiveRepository", "Error downloading file resumable", e)
@@ -449,19 +554,104 @@ class ArchiveRepository(private val context: Context) {
         destinationUri: String,
         existingBytes: Long = 0,
         cookie: String? = null,
+        parts: Int = 4,
         onProgress: (downloadedBytes: Long, speed: Long) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val uri = Uri.parse(destinationUri)
             
+            Log.d("ArchiveRepository", "=== URI Download Started ===")
+            Log.d("ArchiveRepository", "URI: $destinationUri")
+            Log.d("ArchiveRepository", "Parts requested: $parts")
+            
+            if (parts <= 1 || existingBytes > 0) {
+                Log.d("ArchiveRepository", "Using single-part download for URI (parts=$parts, existingBytes=$existingBytes)")
+                return@withContext downloadFileResumableUriSinglePart(
+                    fileUrl, destinationUri, existingBytes, cookie, onProgress
+                )
+            }
+            
+            Log.d("ArchiveRepository", "Checking server support for multi-part download...")
+            val headResponse = archiveApi.getFileInfo(fileUrl, cookie)
+            val totalBytes = headResponse.headers()["Content-Length"]?.toLongOrNull() ?: 0L
+            val acceptsRanges = headResponse.headers()["Accept-Ranges"]?.equals("bytes", ignoreCase = true) ?: false
+            
+            Log.d("ArchiveRepository", "Server Response:")
+            Log.d("ArchiveRepository", "  - Content-Length: $totalBytes bytes")
+            Log.d("ArchiveRepository", "  - Accept-Ranges: ${headResponse.headers()["Accept-Ranges"]}")
+            Log.d("ArchiveRepository", "  - Server: ${headResponse.headers()["Server"]}")
+            
+            if (!acceptsRanges || totalBytes == 0L) {
+                Log.w("ArchiveRepository", "Server doesn't support ranges for URI download, falling back to single-part")
+                return@withContext downloadFileResumableUriSinglePart(
+                    fileUrl, destinationUri, 0, cookie, onProgress
+                )
+            }
+            
+            Log.d("ArchiveRepository", "Server supports ranges! Using temp file for multi-part download...")
+            
+            val tempFile = File(context.cacheDir, "temp_download_${System.currentTimeMillis()}.tmp")
+            try {
+                val multiPartResult = downloadFileMultiPart(
+                    fileUrl, tempFile, totalBytes, parts, cookie, onProgress
+                )
+                
+                if (multiPartResult.isSuccess) {
+                    Log.d("ArchiveRepository", "Multi-part download completed, copying to URI...")
+                    copyFileToUri(tempFile, uri)
+                    Log.d("ArchiveRepository", "=== URI download completed successfully ===")
+                    return@withContext Result.success(destinationUri)
+                } else {
+                    return@withContext multiPartResult.map { destinationUri }
+                }
+            } finally {
+                if (tempFile.exists()) {
+                    tempFile.delete()
+                    Log.d("ArchiveRepository", "Temp file deleted")
+                }
+            }
+            
+        } catch (e: Exception) {
+            Log.e("ArchiveRepository", "Error downloading file to URI", e)
+            Result.failure(e)
+        }
+    }
+    
+    private suspend fun copyFileToUri(sourceFile: File, destinationUri: Uri) = withContext(Dispatchers.IO) {
+        sourceFile.inputStream().use { input ->
+            context.contentResolver.openOutputStream(destinationUri, "w")?.use { output ->
+                val buffer = ByteArray(8192 * 32)
+                var bytes: Int
+                while (input.read(buffer).also { bytes = it } >= 0) {
+                    output.write(buffer, 0, bytes)
+                }
+                output.flush()
+            } ?: throw Exception("Could not open output stream for URI")
+        }
+    }
+    
+    private suspend fun downloadFileResumableUriSinglePart(
+        fileUrl: String,
+        destinationUri: String,
+        existingBytes: Long = 0,
+        cookie: String? = null,
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            val uri = Uri.parse(destinationUri)
+            
+            Log.d("ArchiveRepository", "=== URI Single-Part Download ===")
+            
             val response = if (existingBytes > 0) {
                 val rangeHeader = "bytes=$existingBytes-"
+                Log.d("ArchiveRepository", "Resuming with Range: $rangeHeader")
                 archiveApi.downloadFileWithRange(fileUrl, rangeHeader, cookie)
             } else {
                 archiveApi.downloadFile(fileUrl, cookie)
             }
             
             if (!response.isSuccessful) {
+                Log.e("ArchiveRepository", "Download failed: HTTP ${response.code()}")
                 return@withContext Result.failure(Exception("Download failed: ${response.code()}"))
             }
             
@@ -476,7 +666,7 @@ class ArchiveRepository(private val context: Context) {
             
             body.byteStream().use { input ->
                 context.contentResolver.openOutputStream(uri, if (existingBytes > 0) "wa" else "w")?.use { output ->
-                    val buffer = ByteArray(8192 * 16)
+                    val buffer = ByteArray(8192 * 32)
                     var bytes: Int
                     var flushCounter = 0
                     

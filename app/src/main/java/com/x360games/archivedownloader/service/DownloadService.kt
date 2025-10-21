@@ -39,6 +39,7 @@ class DownloadService : Service() {
     
     private val activeDownloads = mutableMapOf<Long, Job>()
     private val downloadStates = MutableStateFlow<Map<Long, DownloadProgressState>>(emptyMap())
+    private val downloadPartsProgress = MutableStateFlow<Map<Long, Map<Int, Long>>>(emptyMap())
     private val queuedDownloads = mutableListOf<Long>()
     
     private var isForeground = false
@@ -53,7 +54,10 @@ class DownloadService : Service() {
         const val ACTION_PAUSE_DOWNLOAD = "action_pause_download"
         const val ACTION_RESUME_DOWNLOAD = "action_resume_download"
         const val ACTION_CANCEL_DOWNLOAD = "action_cancel_download"
+        const val ACTION_REMOVE_DOWNLOAD = "action_remove_download"
         const val ACTION_RESUME_ALL = "action_resume_all"
+        
+        const val EXTRA_DELETE_FILE = "delete_file"
         
         const val EXTRA_DOWNLOAD_ID = "download_id"
         const val EXTRA_FILE_NAME = "file_name"
@@ -126,6 +130,11 @@ class DownloadService : Service() {
                 val downloadId = intent.getLongExtra(EXTRA_DOWNLOAD_ID, 0)
                 cancelDownload(downloadId)
             }
+            ACTION_REMOVE_DOWNLOAD -> {
+                val downloadId = intent.getLongExtra(EXTRA_DOWNLOAD_ID, 0)
+                val deleteFile = intent.getBooleanExtra(EXTRA_DELETE_FILE, false)
+                removeDownload(downloadId, deleteFile)
+            }
             ACTION_RESUME_ALL -> {
                 resumeIncompleteDownloads()
             }
@@ -180,7 +189,8 @@ class DownloadService : Service() {
                 downloadedBytes = 0,
                 status = DownloadStatus.QUEUED,
                 cookie = cookie,
-                notificationId = notificationId
+                notificationId = notificationId,
+                downloadParts = downloadParts
             )
             
             val downloadId = database.downloadDao().insertDownload(download)
@@ -370,6 +380,34 @@ class DownloadService : Service() {
                 notificationManager.cancel(it.notificationId)
             }
             processQueue()
+        }
+    }
+    
+    private fun removeDownload(downloadId: Long, deleteFile: Boolean) {
+        activeDownloads[downloadId]?.cancel()
+        activeDownloads.remove(downloadId)
+        queuedDownloads.remove(downloadId)
+        
+        serviceScope.launch {
+            val download = database.downloadDao().getDownloadByIdSync(downloadId)
+            download?.let {
+                if (deleteFile) {
+                    try {
+                        val file = File(it.destinationPath)
+                        if (file.exists()) {
+                            file.delete()
+                        }
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                    }
+                }
+                
+                database.downloadDao().deleteDownloadById(downloadId)
+                notificationManager.cancel(it.notificationId)
+            }
+            removeDownloadState(downloadId)
+            processQueue()
+            checkStopService()
         }
     }
     

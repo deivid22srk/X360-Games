@@ -70,6 +70,9 @@ fun NavigationGraph(navController: NavHostController) {
                 },
                 onClearFinished = {
                     downloadViewModel.clearFinishedDownloads()
+                },
+                onDeleteDownloads = { downloadIds ->
+                    downloadViewModel.deleteDownloads(downloadIds)
                 }
             )
         }
