@@ -13,6 +13,7 @@ import com.x360games.archivedownloader.ui.screens.DownloadDetailsScreen
 import com.x360games.archivedownloader.ui.screens.DownloadManagerScreen
 import com.x360games.archivedownloader.ui.screens.MainScreen
 import com.x360games.archivedownloader.ui.screens.SetupScreen
+import com.x360games.archivedownloader.ui.screens.ToolsScreen
 import com.x360games.archivedownloader.viewmodel.DownloadViewModel
 import com.x360games.archivedownloader.viewmodel.MainViewModel
 
@@ -20,6 +21,7 @@ sealed class Screen(val route: String) {
     object Setup : Screen("setup")
     object Main : Screen("main")
     object DownloadManager : Screen("download_manager")
+    object Tools : Screen("tools")
     object DownloadDetails : Screen("download_details/{downloadId}") {
         fun createRoute(downloadId: Long) = "download_details/$downloadId"
     }
@@ -53,6 +55,17 @@ fun NavigationGraph(navController: NavHostController) {
             MainScreen(
                 onNavigateToDownloadManager = {
                     navController.navigate(Screen.DownloadManager.route)
+                },
+                onNavigateToTools = {
+                    navController.navigate(Screen.Tools.route)
+                }
+            )
+        }
+        
+        composable(Screen.Tools.route) {
+            ToolsScreen(
+                onNavigateBack = {
+                    navController.popBackStack()
                 }
             )
         }

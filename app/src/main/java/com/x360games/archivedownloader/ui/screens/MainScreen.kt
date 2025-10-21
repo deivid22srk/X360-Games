@@ -14,6 +14,7 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Build
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Login
 import androidx.compose.material.icons.filled.Logout
@@ -60,7 +61,8 @@ import com.x360games.archivedownloader.viewmodel.UiState
 @Composable
 fun MainScreen(
     viewModel: MainViewModel = viewModel(),
-    onNavigateToDownloadManager: () -> Unit = {}
+    onNavigateToDownloadManager: () -> Unit = {},
+    onNavigateToTools: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -140,6 +142,13 @@ fun MainScreen(
                         Icon(
                             imageVector = Icons.Default.Download,
                             contentDescription = "Downloads"
+                        )
+                    }
+                    
+                    IconButton(onClick = onNavigateToTools) {
+                        Icon(
+                            imageVector = Icons.Default.Build,
+                            contentDescription = "Ferramentas"
                         )
                     }
                     

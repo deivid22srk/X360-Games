@@ -201,7 +201,7 @@ class DownloadService : Service() {
                 status = DownloadStatus.QUEUED,
                 cookie = cookie,
                 notificationId = notificationId,
-                downloadParts = downloadParts
+                downloadParts = 1
             )
             
             val downloadId = database.downloadDao().insertDownload(download)
@@ -244,38 +244,10 @@ class DownloadService : Service() {
                 
                 Log.d("DownloadService", "=== Starting/Resuming Download $downloadId ===")
                 Log.d("DownloadService", "Download Info: fileName=${download.fileName}, totalBytes=${download.totalBytes}, downloadedBytes=${download.downloadedBytes}")
-                Log.d("DownloadService", "Existing parts count: ${existingParts.size}")
-                existingParts.forEach { part ->
-                    Log.d("DownloadService", "  Part ${part.partIndex}: ${part.downloadedBytes}/${part.endByte - part.startByte + 1} bytes (${if(part.isCompleted) "COMPLETED" else "INCOMPLETE"})")
-                }
+                Log.d("DownloadService", "Multi-part DISABLED - using single-part download only")
+                Log.d("DownloadService", "Will resume from byte: ${download.downloadedBytes}")
                 
-                if (existingParts.isEmpty() && download.downloadParts > 1) {
-                    val partSize = download.totalBytes / download.downloadParts
-                    val initialParts = (0 until download.downloadParts).map { partIndex ->
-                        val start = partIndex * partSize
-                        val end = if (partIndex == download.downloadParts - 1) download.totalBytes - 1 else (partIndex + 1) * partSize - 1
-                        com.x360games.archivedownloader.database.DownloadPartEntity(
-                            downloadId = downloadId,
-                            partIndex = partIndex,
-                            startByte = start,
-                            endByte = end,
-                            downloadedBytes = 0,
-                            isCompleted = false
-                        )
-                    }
-                    database.downloadPartDao().insertParts(initialParts)
-                }
-                
-                val partsToUse = if (existingParts.isEmpty()) {
-                    database.downloadPartDao().getPartsForDownload(downloadId)
-                } else {
-                    existingParts
-                }
-                
-                partsToUse.forEach { part ->
-                    DownloadProgressTracker.updatePartProgress(downloadId, part.partIndex, part.downloadedBytes)
-                    Log.d("DownloadService", "Restored part ${part.partIndex} progress: ${part.downloadedBytes} bytes to tracker")
-                }
+                val partsToUse = emptyList<com.x360games.archivedownloader.database.DownloadPartEntity>()
                 
                 var lastHistoryUpdate = 0L
                 
@@ -284,7 +256,7 @@ class DownloadService : Service() {
                     destinationPath = download.destinationPath,
                     existingBytes = download.downloadedBytes,
                     cookie = download.cookie,
-                    parts = downloadParts,
+                    parts = 1,
                     existingParts = partsToUse,
                     onProgress = { downloadedBytes, speed ->
                         serviceScope.launch {
@@ -382,13 +354,21 @@ class DownloadService : Service() {
                     val currentDownload = database.downloadDao().getDownloadByIdSync(downloadId)
                     if (currentDownload != null) {
                         val parts = database.downloadPartDao().getPartsForDownload(downloadId)
-                        val totalDownloadedFromParts = parts.sumOf { it.downloadedBytes }
                         
-                        Log.d("DownloadService", "Download $downloadId paused. Total downloaded from parts: ${totalDownloadedFromParts / 1024 / 1024} MB")
+                        val totalDownloaded = if (parts.isEmpty()) {
+                            Log.d("DownloadService", "No parts found - using currentDownload.downloadedBytes: ${currentDownload.downloadedBytes}")
+                            currentDownload.downloadedBytes
+                        } else {
+                            val totalFromParts = parts.sumOf { it.downloadedBytes }
+                            Log.d("DownloadService", "Total from parts: $totalFromParts")
+                            totalFromParts
+                        }
+                        
+                        Log.d("DownloadService", "Download $downloadId paused. Total downloaded: ${totalDownloaded / 1024 / 1024} MB")
                         
                         database.downloadDao().updateProgress(
                             downloadId,
-                            totalDownloadedFromParts,
+                            totalDownloaded,
                             0,
                             System.currentTimeMillis()
                         )
@@ -482,10 +462,13 @@ class DownloadService : Service() {
                     if (file.exists()) {
                         file.delete()
                     }
+                    
+                    repository.cleanupTempFileForDownload(it.destinationPath)
                 } catch (e: Exception) {
                     e.printStackTrace()
                 }
                 
+                database.downloadPartDao().deletePartsForDownload(downloadId)
                 database.downloadDao().updateStatus(downloadId, DownloadStatus.CANCELLED)
                 notificationManager.cancel(it.notificationId)
             }
@@ -507,11 +490,14 @@ class DownloadService : Service() {
                         if (file.exists()) {
                             file.delete()
                         }
+                        
+                        repository.cleanupTempFileForDownload(it.destinationPath)
                     } catch (e: Exception) {
                         e.printStackTrace()
                     }
                 }
                 
+                database.downloadPartDao().deletePartsForDownload(downloadId)
                 database.downloadDao().deleteDownloadById(downloadId)
                 notificationManager.cancel(it.notificationId)
             }

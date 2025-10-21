@@ -3,6 +3,7 @@ package com.x360games.archivedownloader.network
 import android.content.Context
 import android.media.MediaScannerConnection
 import android.net.Uri
+import android.os.Environment
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
 import com.x360games.archivedownloader.data.ArchiveItem
@@ -27,6 +28,25 @@ import kotlin.coroutines.coroutineContext
 class ArchiveRepository(private val context: Context) {
     private val githubApi = RetrofitClient.githubApi
     private val archiveApi = RetrofitClient.archiveApi
+    
+    init {
+        cleanupOrphanedTempFiles()
+    }
+    
+    private fun cleanupOrphanedTempFiles() {
+        try {
+            val downloadsDir = context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS)
+            downloadsDir?.listFiles()?.filter { file ->
+                file.name.startsWith(".temp_") && 
+                (System.currentTimeMillis() - file.lastModified() > 7 * 24 * 60 * 60 * 1000)
+            }?.forEach { file ->
+                val deleted = file.delete()
+                Log.d("ArchiveRepository", "Cleaned up old temp file: ${file.name} (deleted: $deleted)")
+            }
+        } catch (e: Exception) {
+            Log.e("ArchiveRepository", "Error cleaning up temp files", e)
+        }
+    }
     
     suspend fun getX360Collection(): Result<X360Collection> = withContext(Dispatchers.IO) {
         try {
@@ -179,54 +199,12 @@ class ArchiveRepository(private val context: Context) {
         onSavePartProgress: ((partIndex: Int, startByte: Long, endByte: Long, downloadedBytes: Long, isCompleted: Boolean) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            if (destinationPath.startsWith("content://")) {
-                return@withContext downloadFileResumableUri(
-                    fileUrl, destinationPath, existingBytes, cookie, parts, existingParts, onProgress, onPartProgress, onSavePartProgress
-                )
-            }
+            Log.d("ArchiveRepository", "=== Multi-part download DISABLED - using single-part ===")
+            Log.d("ArchiveRepository", "Destination: $destinationPath")
+            Log.d("ArchiveRepository", "Existing bytes: $existingBytes")
             
-            val file = File(destinationPath)
-            
-            if (!file.parentFile?.exists()!!) {
-                file.parentFile?.mkdirs()
-            }
-            
-            if (parts <= 1) {
-                Log.d("ArchiveRepository", "Using single-part download. Parts=$parts")
-                return@withContext downloadFileSinglePart(
-                    fileUrl, destinationPath, existingBytes, cookie, onProgress
-                )
-            }
-            
-            Log.d("ArchiveRepository", "Checking server support for multi-part download...")
-            Log.d("ArchiveRepository", "URL: $fileUrl")
-            
-            val headResponse = archiveApi.getFileInfo(fileUrl, cookie)
-            val totalBytes = headResponse.headers()["Content-Length"]?.toLongOrNull() ?: 0L
-            val acceptsRanges = headResponse.headers()["Accept-Ranges"]?.equals("bytes", ignoreCase = true) ?: false
-            val serverHeader = headResponse.headers()["Server"] ?: "Unknown"
-            
-            Log.d("ArchiveRepository", "Server Response Headers:")
-            Log.d("ArchiveRepository", "  - Content-Length: $totalBytes bytes")
-            Log.d("ArchiveRepository", "  - Accept-Ranges: ${headResponse.headers()["Accept-Ranges"]}")
-            Log.d("ArchiveRepository", "  - Server: $serverHeader")
-            Log.d("ArchiveRepository", "  - Content-Type: ${headResponse.headers()["Content-Type"]}")
-            
-            if (!acceptsRanges || totalBytes == 0L) {
-                Log.w("ArchiveRepository", "Server doesn't support ranges (acceptsRanges=$acceptsRanges, totalBytes=$totalBytes)")
-                Log.w("ArchiveRepository", "Falling back to single-part download")
-                return@withContext downloadFileSinglePart(
-                    fileUrl, destinationPath, 0, cookie, onProgress
-                )
-            }
-            
-            Log.d("ArchiveRepository", "Server supports ranges! Starting multi-part download with $parts parts...")
-            Log.d("ArchiveRepository", "Destination file: ${file.absolutePath}")
-            Log.d("ArchiveRepository", "Parent dir exists: ${file.parentFile?.exists()}")
-            Log.d("ArchiveRepository", "Parent dir writable: ${file.parentFile?.canWrite()}")
-            
-            return@withContext downloadFileMultiPart(
-                fileUrl, file, totalBytes, parts, cookie, existingParts, onProgress, onPartProgress, onSavePartProgress
+            return@withContext downloadFileSinglePart(
+                fileUrl, destinationPath, existingBytes, cookie, onProgress
             )
             
         } catch (e: Exception) {
@@ -626,7 +604,9 @@ class ArchiveRepository(private val context: Context) {
             
             Log.d("ArchiveRepository", "=== Single-Part Download Started ===")
             Log.d("ArchiveRepository", "URL: $fileUrl")
+            Log.d("ArchiveRepository", "Destination: ${file.absolutePath}")
             Log.d("ArchiveRepository", "Existing bytes: $existingBytes")
+            Log.d("ArchiveRepository", "File exists: ${file.exists()}, current size: ${if (file.exists()) file.length() else 0}")
             
             val response = if (existingBytes > 0 && file.exists()) {
                 val rangeHeader = "bytes=$existingBytes-"
@@ -720,39 +700,12 @@ class ArchiveRepository(private val context: Context) {
         onSavePartProgress: ((partIndex: Int, startByte: Long, endByte: Long, downloadedBytes: Long, isCompleted: Boolean) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
-            val uri = Uri.parse(destinationUri)
-            
-            Log.d("ArchiveRepository", "=== URI Download Started ===")
+            Log.d("ArchiveRepository", "=== URI Download (Single-Part ONLY) ===")
             Log.d("ArchiveRepository", "URI: $destinationUri")
-            Log.d("ArchiveRepository", "Parts requested: $parts")
+            Log.d("ArchiveRepository", "Existing bytes: $existingBytes")
             
-            if (parts <= 1) {
-                Log.d("ArchiveRepository", "Using single-part download for URI (parts=$parts)")
-                return@withContext downloadFileResumableUriSinglePart(
-                    fileUrl, destinationUri, existingBytes, cookie, onProgress
-                )
-            }
-            
-            Log.d("ArchiveRepository", "Checking server support for multi-part download...")
-            val headResponse = archiveApi.getFileInfo(fileUrl, cookie)
-            val totalBytes = headResponse.headers()["Content-Length"]?.toLongOrNull() ?: 0L
-            val acceptsRanges = headResponse.headers()["Accept-Ranges"]?.equals("bytes", ignoreCase = true) ?: false
-            
-            Log.d("ArchiveRepository", "Server Response:")
-            Log.d("ArchiveRepository", "  - Content-Length: $totalBytes bytes")
-            Log.d("ArchiveRepository", "  - Accept-Ranges: ${headResponse.headers()["Accept-Ranges"]}")
-            Log.d("ArchiveRepository", "  - Server: ${headResponse.headers()["Server"]}")
-            
-            if (!acceptsRanges || totalBytes == 0L) {
-                Log.w("ArchiveRepository", "Server doesn't support ranges for URI download, falling back to single-part")
-                return@withContext downloadFileResumableUriSinglePart(
-                    fileUrl, destinationUri, 0, cookie, onProgress
-                )
-            }
-            
-            Log.d("ArchiveRepository", "Server supports ranges! Downloading directly to URI (multi-part not supported for URI)...")
             return@withContext downloadFileResumableUriSinglePart(
-                fileUrl, destinationUri, 0, cookie, onProgress
+                fileUrl, destinationUri, existingBytes, cookie, onProgress
             )
             
         } catch (e: Exception) {
@@ -854,5 +807,24 @@ class ArchiveRepository(private val context: Context) {
     
     private fun extractIdentifier(url: String): String {
         return url.substringAfterLast("/")
+    }
+    
+    fun cleanupTempFileForDownload(destinationUri: String) {
+        try {
+            if (!destinationUri.startsWith("content://")) return
+            
+            val uri = Uri.parse(destinationUri)
+            val documentFile = DocumentFile.fromSingleUri(context, uri)
+            val displayName = documentFile?.name ?: return
+            val sanitizedName = displayName.replace(Regex("[^a-zA-Z0-9._-]"), "_")
+            
+            val tempFile = File(context.getExternalFilesDir(Environment.DIRECTORY_DOWNLOADS), ".temp_$sanitizedName")
+            if (tempFile.exists()) {
+                val deleted = tempFile.delete()
+                Log.d("ArchiveRepository", "Cleaned up temp file for cancelled/removed download: $sanitizedName (deleted: $deleted)")
+            }
+        } catch (e: Exception) {
+            Log.e("ArchiveRepository", "Error cleaning up temp file", e)
+        }
     }
 }
