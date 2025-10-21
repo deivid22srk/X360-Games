@@ -17,7 +17,9 @@ set(SOURCE_FILES
     iso2god_jni.cpp
     iso2god_converter.cpp
     gdf_parser.cpp
+    xex_parser.cpp
     hash_utils.cpp
+    god_hash_tables.cpp
 )
 
 # Criar biblioteca compartilhada
