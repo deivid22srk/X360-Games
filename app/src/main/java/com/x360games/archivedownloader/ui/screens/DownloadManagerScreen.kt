@@ -38,7 +38,8 @@ fun DownloadManagerScreen(
     onNavigateBack: () -> Unit,
     onNavigateToDetails: (Long) -> Unit,
     onClearFinished: () -> Unit,
-    onDeleteDownloads: (List<Long>) -> Unit
+    onDeleteDownloads: (List<Long>) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     var selectionMode by remember { mutableStateOf(false) }

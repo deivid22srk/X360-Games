@@ -1,8 +1,19 @@
 package com.x360games.archivedownloader.navigation
 
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Download
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -12,19 +23,30 @@ import androidx.navigation.navArgument
 import com.x360games.archivedownloader.ui.screens.DownloadDetailsScreen
 import com.x360games.archivedownloader.ui.screens.DownloadManagerScreen
 import com.x360games.archivedownloader.ui.screens.MainScreen
+import com.x360games.archivedownloader.ui.screens.SettingsScreen
 import com.x360games.archivedownloader.ui.screens.SetupScreen
-import com.x360games.archivedownloader.ui.screens.ToolsScreen
 import com.x360games.archivedownloader.viewmodel.DownloadViewModel
 import com.x360games.archivedownloader.viewmodel.MainViewModel
 
 sealed class Screen(val route: String) {
     object Setup : Screen("setup")
+    object Home : Screen("home")
     object Main : Screen("main")
-    object DownloadManager : Screen("download_manager")
-    object Tools : Screen("tools")
+    object Downloads : Screen("downloads")
+    object Settings : Screen("settings")
     object DownloadDetails : Screen("download_details/{downloadId}") {
         fun createRoute(downloadId: Long) = "download_details/$downloadId"
     }
+}
+
+sealed class BottomNavItem(
+    val route: String,
+    val icon: ImageVector,
+    val label: String
+) {
+    object Home : BottomNavItem(Screen.Main.route, Icons.Default.Home, "Início")
+    object Downloads : BottomNavItem(Screen.Downloads.route, Icons.Default.Download, "Downloads")
+    object Settings : BottomNavItem(Screen.Settings.route, Icons.Default.Settings, "Configurações")
 }
 
 @Composable
@@ -35,12 +57,12 @@ fun NavigationGraph(navController: NavHostController) {
     
     NavHost(
         navController = navController,
-        startDestination = if (setupCompleted) Screen.Main.route else Screen.Setup.route
+        startDestination = if (setupCompleted) Screen.Home.route else Screen.Setup.route
     ) {
         composable(Screen.Setup.route) {
             SetupScreen(
                 onSetupComplete = {
-                    navController.navigate(Screen.Main.route) {
+                    navController.navigate(Screen.Home.route) {
                         popUpTo(Screen.Setup.route) { inclusive = true }
                     }
                 },
@@ -51,46 +73,17 @@ fun NavigationGraph(navController: NavHostController) {
             )
         }
         
-        composable(Screen.Main.route) {
-            MainScreen(
-                onNavigateToDownloadManager = {
-                    navController.navigate(Screen.DownloadManager.route)
-                },
-                onNavigateToTools = {
-                    navController.navigate(Screen.Tools.route)
-                }
-            )
-        }
-        
-        composable(Screen.Tools.route) {
-            ToolsScreen(
-                onNavigateBack = {
-                    navController.popBackStack()
-                }
-            )
-        }
-        
-        composable(Screen.DownloadManager.route) {
-            val downloads by downloadViewModel.allDownloads.collectAsState()
-            val partsProgress by downloadViewModel.partsProgress.collectAsState()
-            
-            DownloadManagerScreen(
-                downloads = downloads,
-                partsProgress = partsProgress,
-                onNavigateBack = {
-                    navController.popBackStack()
-                },
+        composable(Screen.Home.route) {
+            HomeScreenWithBottomNav(
+                downloadViewModel = downloadViewModel,
+                mainViewModel = mainViewModel,
                 onNavigateToDetails = { downloadId ->
                     navController.navigate(Screen.DownloadDetails.createRoute(downloadId))
-                },
-                onClearFinished = {
-                    downloadViewModel.clearFinishedDownloads()
-                },
-                onDeleteDownloads = { downloadIds ->
-                    downloadViewModel.deleteDownloads(downloadIds)
                 }
             )
         }
+        
+
         
         composable(
             route = Screen.DownloadDetails.route,
@@ -108,6 +101,62 @@ fun NavigationGraph(navController: NavHostController) {
                     navController.popBackStack()
                 },
                 downloadViewModel = downloadViewModel
+            )
+        }
+    }
+}
+
+@Composable
+fun HomeScreenWithBottomNav(
+    downloadViewModel: DownloadViewModel,
+    mainViewModel: MainViewModel,
+    onNavigateToDetails: (Long) -> Unit
+) {
+    var selectedTab by remember { mutableIntStateOf(0) }
+    val downloads by downloadViewModel.allDownloads.collectAsState()
+    val partsProgress by downloadViewModel.partsProgress.collectAsState()
+    
+    val bottomNavItems = listOf(
+        BottomNavItem.Home,
+        BottomNavItem.Downloads,
+        BottomNavItem.Settings
+    )
+    
+    Scaffold(
+        bottomBar = {
+            NavigationBar {
+                bottomNavItems.forEachIndexed { index, item ->
+                    NavigationBarItem(
+                        selected = selectedTab == index,
+                        onClick = { selectedTab = index },
+                        icon = { Icon(item.icon, contentDescription = item.label) },
+                        label = { Text(item.label) }
+                    )
+                }
+            }
+        }
+    ) { paddingValues ->
+        when (selectedTab) {
+            0 -> MainScreen(
+                viewModel = mainViewModel,
+                onNavigateToDownloadManager = { selectedTab = 1 },
+                onNavigateToSettings = { selectedTab = 2 }
+            )
+            1 -> DownloadManagerScreen(
+                downloads = downloads,
+                partsProgress = partsProgress,
+                onNavigateBack = { selectedTab = 0 },
+                onNavigateToDetails = onNavigateToDetails,
+                onClearFinished = { downloadViewModel.clearFinishedDownloads() },
+                onDeleteDownloads = { downloadIds ->
+                    downloadViewModel.deleteDownloads(downloadIds)
+                },
+                modifier = Modifier.padding(paddingValues)
+            )
+            2 -> SettingsScreen(
+                onNavigateBack = { selectedTab = 0 },
+                viewModel = mainViewModel,
+                modifier = Modifier.padding(paddingValues)
             )
         }
     }

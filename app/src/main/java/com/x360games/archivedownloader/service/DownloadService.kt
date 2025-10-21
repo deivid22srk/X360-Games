@@ -6,6 +6,7 @@ import android.app.PendingIntent
 import android.app.Service
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
@@ -674,14 +675,27 @@ class DownloadService : Service() {
                 
                 Log.d("DownloadService", "Final destination path: $destinationPath")
                 
-                val result = rarExtractor.extractRarFile(
-                    rarFilePath = filePath,
-                    destinationPath = destinationPath,
-                    onProgress = { extractedFiles, totalFiles, currentFile ->
-                        Log.d("DownloadService", "Extraction progress: $extractedFiles/$totalFiles - $currentFile")
-                        showExtractionNotification(notificationId, fileName, extractedFiles, totalFiles)
-                    }
-                )
+                val result = if (filePath.startsWith("content://")) {
+                    Log.d("DownloadService", "Using URI-based extraction")
+                    rarExtractor.extractRarFromUri(
+                        rarUri = Uri.parse(filePath),
+                        destinationPath = destinationPath,
+                        onProgress = { extractedFiles, totalFiles, currentFile ->
+                            Log.d("DownloadService", "Extraction progress: $extractedFiles/$totalFiles - $currentFile")
+                            showExtractionNotification(notificationId, fileName, extractedFiles, totalFiles)
+                        }
+                    )
+                } else {
+                    Log.d("DownloadService", "Using file path extraction")
+                    rarExtractor.extractRarFile(
+                        rarFilePath = filePath,
+                        destinationPath = destinationPath,
+                        onProgress = { extractedFiles, totalFiles, currentFile ->
+                            Log.d("DownloadService", "Extraction progress: $extractedFiles/$totalFiles - $currentFile")
+                            showExtractionNotification(notificationId, fileName, extractedFiles, totalFiles)
+                        }
+                    )
+                }
                 
                 result.fold(
                     onSuccess = { destPath ->

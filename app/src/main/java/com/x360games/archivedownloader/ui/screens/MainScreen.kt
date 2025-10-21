@@ -62,7 +62,7 @@ import com.x360games.archivedownloader.viewmodel.UiState
 fun MainScreen(
     viewModel: MainViewModel = viewModel(),
     onNavigateToDownloadManager: () -> Unit = {},
-    onNavigateToTools: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -75,7 +75,6 @@ fun MainScreen(
     val downloadPath by viewModel.downloadPath.collectAsState()
     
     var showLoginWebView by remember { mutableStateOf(false) }
-    var showSettings by remember { mutableStateOf(false) }
     val snackbarHostState = remember { SnackbarHostState() }
     
     val storagePermissionState = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
@@ -135,27 +134,6 @@ fun MainScreen(
                         Icon(
                             imageVector = Icons.Default.Refresh,
                             contentDescription = "Refresh"
-                        )
-                    }
-                    
-                    IconButton(onClick = onNavigateToDownloadManager) {
-                        Icon(
-                            imageVector = Icons.Default.Download,
-                            contentDescription = "Downloads"
-                        )
-                    }
-                    
-                    IconButton(onClick = onNavigateToTools) {
-                        Icon(
-                            imageVector = Icons.Default.Build,
-                            contentDescription = "Ferramentas"
-                        )
-                    }
-                    
-                    IconButton(onClick = { showSettings = true }) {
-                        Icon(
-                            imageVector = Icons.Default.Settings,
-                            contentDescription = "Settings"
                         )
                     }
                 }
@@ -268,10 +246,4 @@ fun MainScreen(
         )
     }
     
-    if (showSettings) {
-        SettingsScreen(
-            onNavigateBack = { showSettings = false },
-            viewModel = viewModel
-        )
-    }
 }

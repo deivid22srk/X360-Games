@@ -15,6 +15,54 @@ import java.io.FileOutputStream
 
 class RarExtractor(private val context: Context) {
     
+    suspend fun extractRarFromUri(
+        rarUri: Uri,
+        destinationPath: String,
+        onProgress: (extractedFiles: Int, totalFiles: Int, currentFile: String) -> Unit
+    ): Result<String> = withContext(Dispatchers.IO) {
+        try {
+            Log.d("RarExtractor", "=== Extracting from URI ===")
+            Log.d("RarExtractor", "URI: $rarUri")
+            
+            val fileName = FileUtils.getFileNameFromUri(context, rarUri) ?: "archive.rar"
+            
+            onProgress(0, 100, "Preparando arquivo RAR...")
+            
+            val tempDir = File(context.cacheDir, "rar_temp")
+            tempDir.mkdirs()
+            tempDir.listFiles()?.forEach { it.delete() }
+            
+            val tempRarFile = File(tempDir, fileName)
+            
+            Log.d("RarExtractor", "Copying RAR to temp: ${tempRarFile.absolutePath}")
+            
+            context.contentResolver.openInputStream(rarUri)?.use { inputStream ->
+                FileOutputStream(tempRarFile).use { outputStream ->
+                    inputStream.copyTo(outputStream, bufferSize = 8192)
+                }
+            } ?: return@withContext Result.failure(Exception("Failed to open RAR file"))
+            
+            Log.d("RarExtractor", "RAR copied successfully: ${tempRarFile.length()} bytes")
+            
+            onProgress(0, 100, "Extraindo arquivos...")
+            
+            val result = extractRarFile(
+                rarFilePath = tempRarFile.absolutePath,
+                destinationPath = destinationPath,
+                onProgress = onProgress
+            )
+            
+            tempRarFile.delete()
+            Log.d("RarExtractor", "Temp RAR file cleaned up")
+            
+            result
+            
+        } catch (e: Exception) {
+            Log.e("RarExtractor", "Error extracting from URI", e)
+            Result.failure(e)
+        }
+    }
+    
     suspend fun extractRarFile(
         rarFilePath: String,
         destinationPath: String,
