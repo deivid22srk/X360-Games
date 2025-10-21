@@ -50,6 +50,7 @@ fun ArchiveItemCard(
     isExpanded: Boolean,
     onToggleExpanded: () -> Unit,
     onDownloadFile: (ArchiveFile) -> Unit,
+    searchQuery: String = "",
     modifier: Modifier = Modifier
 ) {
     Card(
@@ -120,17 +121,42 @@ fun ArchiveItemCard(
             ) {
                 Column {
                     Divider()
-                    item.files.take(100).forEach { file ->
+                    
+                    val filesToShow = if (searchQuery.isNotBlank()) {
+                        item.files.filter { file ->
+                            file.name.contains(searchQuery, ignoreCase = true)
+                        }
+                    } else {
+                        item.files.take(100)
+                    }
+                    
+                    filesToShow.forEach { file ->
                         FileListItem(
                             file = file,
                             onDownload = { onDownloadFile(file) }
                         )
                     }
-                    if (item.files.size > 100) {
+                    
+                    if (searchQuery.isBlank() && item.files.size > 100) {
                         Text(
-                            text = "... and ${item.files.size - 100} more files",
+                            text = "... and ${item.files.size - 100} more files (use search to find specific files)",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else if (searchQuery.isNotBlank() && filesToShow.isEmpty()) {
+                        Text(
+                            text = "No files match your search in this item",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(16.dp)
+                        )
+                    } else if (searchQuery.isNotBlank() && filesToShow.isNotEmpty()) {
+                        Text(
+                            text = "Showing ${filesToShow.size} matching file(s)",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.Bold,
                             modifier = Modifier.padding(16.dp)
                         )
                     }

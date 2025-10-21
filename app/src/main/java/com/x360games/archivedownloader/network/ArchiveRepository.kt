@@ -202,14 +202,21 @@ class ArchiveRepository(private val context: Context) {
             
             body.byteStream().use { input ->
                 FileOutputStream(file, existingBytes > 0).use { output ->
-                    val buffer = ByteArray(8192 * 4)
-                    var bytes = input.read(buffer)
+                    val buffer = ByteArray(8192 * 16)
+                    var bytes: Int
+                    var flushCounter = 0
                     
-                    while (bytes >= 0) {
+                    while (input.read(buffer).also { bytes = it } >= 0) {
                         ensureActive()
                         
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
+                        flushCounter++
+                        
+                        if (flushCounter >= 10) {
+                            output.flush()
+                            flushCounter = 0
+                        }
                         
                         val currentTime = System.currentTimeMillis()
                         val timeDiff = currentTime - lastUpdateTime
@@ -223,10 +230,9 @@ class ArchiveRepository(private val context: Context) {
                             lastUpdateTime = currentTime
                             lastDownloadedBytes = downloadedBytes
                         }
-                        
-                        bytes = input.read(buffer)
                     }
                     
+                    output.flush()
                     onProgress(downloadedBytes, 0)
                 }
             }
@@ -270,14 +276,21 @@ class ArchiveRepository(private val context: Context) {
             
             body.byteStream().use { input ->
                 context.contentResolver.openOutputStream(uri, if (existingBytes > 0) "wa" else "w")?.use { output ->
-                    val buffer = ByteArray(8192 * 4)
-                    var bytes = input.read(buffer)
+                    val buffer = ByteArray(8192 * 16)
+                    var bytes: Int
+                    var flushCounter = 0
                     
-                    while (bytes >= 0) {
+                    while (input.read(buffer).also { bytes = it } >= 0) {
                         ensureActive()
                         
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
+                        flushCounter++
+                        
+                        if (flushCounter >= 10) {
+                            output.flush()
+                            flushCounter = 0
+                        }
                         
                         val currentTime = System.currentTimeMillis()
                         val timeDiff = currentTime - lastUpdateTime
@@ -291,10 +304,9 @@ class ArchiveRepository(private val context: Context) {
                             lastUpdateTime = currentTime
                             lastDownloadedBytes = downloadedBytes
                         }
-                        
-                        bytes = input.read(buffer)
                     }
                     
+                    output.flush()
                     onProgress(downloadedBytes, 0)
                 } ?: return@withContext Result.failure(Exception("Could not open output stream"))
             }

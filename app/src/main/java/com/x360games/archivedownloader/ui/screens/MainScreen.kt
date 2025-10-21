@@ -221,7 +221,8 @@ fun MainScreen(
                                         } else {
                                             storagePermissionState.launchPermissionRequest()
                                         }
-                                    }
+                                    },
+                                    searchQuery = searchQuery
                                 )
                             }
                         }

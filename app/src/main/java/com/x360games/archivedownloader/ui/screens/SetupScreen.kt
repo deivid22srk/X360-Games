@@ -86,7 +86,8 @@ fun SetupScreen(
                     Row(
                         modifier = Modifier
                             .fillMaxWidth()
-                            .padding(16.dp),
+                            .padding(16.dp)
+                            .windowInsetsPadding(WindowInsets.navigationBars),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         if (currentStep > 1) {

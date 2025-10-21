@@ -177,7 +177,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             allItems.filter { item ->
                 val matchesTitle = item.title.contains(query, ignoreCase = true)
                 val matchesId = item.id.contains(query, ignoreCase = true)
-                matchesTitle || matchesId
+                val matchesFileName = item.files.any { file ->
+                    file.name.contains(query, ignoreCase = true)
+                }
+                matchesTitle || matchesId || matchesFileName
             }
         }
         _filteredItems.value = filtered
