@@ -43,6 +43,7 @@ class DownloadService : Service() {
     
     private var isForeground = false
     private var maxConcurrentDownloads = 1
+    private var downloadParts = 4
     
     companion object {
         const val CHANNEL_ID = "download_service_channel"
@@ -78,6 +79,7 @@ class DownloadService : Service() {
         
         serviceScope.launch {
             maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+            downloadParts = preferencesManager.downloadParts.first()
         }
         
         createNotificationChannel()
@@ -191,6 +193,7 @@ class DownloadService : Service() {
         
         serviceScope.launch {
             maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+            downloadParts = preferencesManager.downloadParts.first()
         }
         
         if (activeDownloads.size >= maxConcurrentDownloads) {
@@ -211,6 +214,9 @@ class DownloadService : Service() {
             try {
                 val download = database.downloadDao().getDownloadByIdSync(downloadId) ?: return@launch
                 
+                maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+                downloadParts = preferencesManager.downloadParts.first()
+                
                 database.downloadDao().updateStatus(downloadId, DownloadStatus.DOWNLOADING)
                 
                 var lastHistoryUpdate = 0L
@@ -220,6 +226,7 @@ class DownloadService : Service() {
                     destinationPath = download.destinationPath,
                     existingBytes = download.downloadedBytes,
                     cookie = download.cookie,
+                    parts = downloadParts,
                     onProgress = { downloadedBytes, speed ->
                         serviceScope.launch {
                             database.downloadDao().updateProgress(
@@ -289,6 +296,7 @@ class DownloadService : Service() {
     private fun processQueue() {
         serviceScope.launch {
             maxConcurrentDownloads = preferencesManager.concurrentDownloads.first()
+            downloadParts = preferencesManager.downloadParts.first()
         }
         
         while (activeDownloads.size < maxConcurrentDownloads && queuedDownloads.isNotEmpty()) {

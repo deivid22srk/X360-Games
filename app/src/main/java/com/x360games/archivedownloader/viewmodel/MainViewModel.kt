@@ -97,6 +97,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         1
     )
     
+    val downloadParts = preferencesManager.downloadParts.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        4
+    )
+    
     val setupCompleted = preferencesManager.setupCompleted.stateIn(
         viewModelScope,
         SharingStarted.WhileSubscribed(5000),
@@ -277,6 +283,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setConcurrentDownloads(count: Int) {
         viewModelScope.launch {
             preferencesManager.setConcurrentDownloads(count)
+        }
+    }
+    
+    fun setDownloadParts(parts: Int) {
+        viewModelScope.launch {
+            preferencesManager.setDownloadParts(parts)
         }
     }
     

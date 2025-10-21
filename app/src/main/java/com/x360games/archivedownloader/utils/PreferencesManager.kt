@@ -22,6 +22,7 @@ class PreferencesManager(private val context: Context) {
         private val EXTRACTION_PATH_KEY = stringPreferencesKey("extraction_path")
         private val SETUP_COMPLETED_KEY = booleanPreferencesKey("setup_completed")
         private val CONCURRENT_DOWNLOADS_KEY = intPreferencesKey("concurrent_downloads")
+        private val DOWNLOAD_PARTS_KEY = intPreferencesKey("download_parts")
     }
     
     val username: Flow<String?> = context.dataStore.data.map { preferences ->
@@ -50,6 +51,10 @@ class PreferencesManager(private val context: Context) {
     
     val concurrentDownloads: Flow<Int> = context.dataStore.data.map { preferences ->
         preferences[CONCURRENT_DOWNLOADS_KEY] ?: 1
+    }
+    
+    val downloadParts: Flow<Int> = context.dataStore.data.map { preferences ->
+        preferences[DOWNLOAD_PARTS_KEY] ?: 4
     }
     
     suspend fun saveCredentials(username: String, cookies: String) {
@@ -93,6 +98,12 @@ class PreferencesManager(private val context: Context) {
     suspend fun setConcurrentDownloads(count: Int) {
         context.dataStore.edit { preferences ->
             preferences[CONCURRENT_DOWNLOADS_KEY] = count
+        }
+    }
+    
+    suspend fun setDownloadParts(parts: Int) {
+        context.dataStore.edit { preferences ->
+            preferences[DOWNLOAD_PARTS_KEY] = parts.coerceIn(1, 16)
         }
     }
 }

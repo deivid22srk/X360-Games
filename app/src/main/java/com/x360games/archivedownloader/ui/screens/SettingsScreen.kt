@@ -26,6 +26,7 @@ import androidx.compose.material.icons.filled.BatteryChargingFull
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Queue
+import androidx.compose.material.icons.filled.Speed
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -66,6 +67,7 @@ fun SettingsScreen(
     val autoExtract by viewModel.autoExtract.collectAsState(initial = false)
     val extractionPath by viewModel.extractionPath.collectAsState()
     val concurrentDownloads by viewModel.concurrentDownloads.collectAsState(initial = 1)
+    val downloadParts by viewModel.downloadParts.collectAsState(initial = 4)
     
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -196,6 +198,59 @@ fun SettingsScreen(
                     leadingContent = {
                         Icon(
                             imageVector = Icons.Default.Queue,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                
+                HorizontalDivider()
+                
+                ListItem(
+                    headlineContent = { Text("Download Parts (Multi-Thread)") },
+                    supportingContent = {
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(
+                                text = "$downloadParts part(s) per download",
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "Higher values can significantly increase download speed by making multiple simultaneous connections. Similar to 1DM and ADM.",
+                                style = MaterialTheme.typography.bodySmall
+                            )
+                            Slider(
+                                value = downloadParts.toFloat(),
+                                onValueChange = { value ->
+                                    scope.launch {
+                                        viewModel.setDownloadParts(value.toInt())
+                                    }
+                                },
+                                valueRange = 1f..16f,
+                                steps = 14,
+                                modifier = Modifier.fillMaxWidth()
+                            )
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("1", style = MaterialTheme.typography.labelSmall)
+                                Text("4", style = MaterialTheme.typography.labelSmall)
+                                Text("8", style = MaterialTheme.typography.labelSmall)
+                                Text("12", style = MaterialTheme.typography.labelSmall)
+                                Text("16", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Speed,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary
                         )
