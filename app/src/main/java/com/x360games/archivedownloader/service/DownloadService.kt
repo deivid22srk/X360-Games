@@ -57,8 +57,10 @@ class DownloadService : Service() {
         const val ACTION_CANCEL_DOWNLOAD = "action_cancel_download"
         const val ACTION_REMOVE_DOWNLOAD = "action_remove_download"
         const val ACTION_RESUME_ALL = "action_resume_all"
+        const val ACTION_EXTRACT = "action_extract"
         
         const val EXTRA_DELETE_FILE = "delete_file"
+        const val EXTRA_FILE_PATH = "file_path"
         
         const val EXTRA_DOWNLOAD_ID = "download_id"
         const val EXTRA_FILE_NAME = "file_name"
@@ -138,6 +140,13 @@ class DownloadService : Service() {
             }
             ACTION_RESUME_ALL -> {
                 resumeIncompleteDownloads()
+            }
+            ACTION_EXTRACT -> {
+                val downloadId = intent.getLongExtra(EXTRA_DOWNLOAD_ID, 0)
+                val filePath = intent.getStringExtra(EXTRA_FILE_PATH) ?: return
+                val fileName = intent.getStringExtra(EXTRA_FILE_NAME) ?: return
+                val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, 0)
+                extractRarFile(downloadId, filePath, fileName, notificationId)
             }
         }
     }
@@ -313,12 +322,29 @@ class DownloadService : Service() {
                 
                 result.fold(
                     onSuccess = { filePath ->
+                        Log.d("DownloadService", "=== Download completed successfully ===")
+                        Log.d("DownloadService", "Download ID: $downloadId")
+                        Log.d("DownloadService", "File: ${download.fileName}")
+                        Log.d("DownloadService", "Path: $filePath")
+                        
                         database.downloadDao().updateStatus(downloadId, DownloadStatus.COMPLETED)
                         showCompletionNotification(download.notificationId, download.fileName, true)
                         
                         val autoExtract = preferencesManager.autoExtract.first()
-                        if (autoExtract && download.fileName.endsWith(".rar", ignoreCase = true)) {
+                        val isRarFile = download.fileName.endsWith(".rar", ignoreCase = true)
+                        
+                        Log.d("DownloadService", "Auto-extract enabled: $autoExtract")
+                        Log.d("DownloadService", "Is RAR file: $isRarFile")
+                        
+                        if (autoExtract && isRarFile) {
+                            Log.d("DownloadService", "Starting automatic extraction...")
                             extractRarFile(downloadId, filePath, download.fileName, download.notificationId)
+                        } else {
+                            if (!isRarFile) {
+                                Log.d("DownloadService", "Skipping extraction - not a RAR file")
+                            } else {
+                                Log.d("DownloadService", "Skipping extraction - auto-extract is disabled")
+                            }
                         }
                     },
                     onFailure = { error ->
@@ -554,34 +580,62 @@ class DownloadService : Service() {
     private fun extractRarFile(downloadId: Long, filePath: String, fileName: String, notificationId: Int) {
         serviceScope.launch {
             try {
+                Log.d("DownloadService", "=== Starting RAR extraction ===")
+                Log.d("DownloadService", "Download ID: $downloadId")
+                Log.d("DownloadService", "File path: $filePath")
+                Log.d("DownloadService", "File name: $fileName")
+                
+                val fileExists = if (filePath.startsWith("content://")) {
+                    true
+                } else {
+                    File(filePath).exists()
+                }
+                
+                if (!fileExists) {
+                    Log.e("DownloadService", "RAR file not found at: $filePath")
+                    showExtractionCompleteNotification(notificationId, fileName, false, "File not found")
+                    return@launch
+                }
+                
+                Log.d("DownloadService", "RAR file exists, starting extraction...")
                 showExtractionNotification(notificationId, fileName, 0, 0)
                 
                 val extractionPath = preferencesManager.extractionPath.first()
+                Log.d("DownloadService", "Configured extraction path: $extractionPath")
+                
                 val destinationPath = extractionPath ?: run {
-                    if (filePath.startsWith("content://")) {
+                    val defaultPath = if (filePath.startsWith("content://")) {
                         filePath.substringBeforeLast("/")
                     } else {
                         File(filePath).parent ?: filePath
                     }
+                    Log.d("DownloadService", "Using default extraction path: $defaultPath")
+                    defaultPath
                 }
+                
+                Log.d("DownloadService", "Final destination path: $destinationPath")
                 
                 val result = rarExtractor.extractRarFile(
                     rarFilePath = filePath,
                     destinationPath = destinationPath,
                     onProgress = { extractedFiles, totalFiles, currentFile ->
+                        Log.d("DownloadService", "Extraction progress: $extractedFiles/$totalFiles - $currentFile")
                         showExtractionNotification(notificationId, fileName, extractedFiles, totalFiles)
                     }
                 )
                 
                 result.fold(
-                    onSuccess = {
+                    onSuccess = { destPath ->
+                        Log.d("DownloadService", "Extraction completed successfully to: $destPath")
                         showExtractionCompleteNotification(notificationId, fileName, true)
                     },
                     onFailure = { error ->
+                        Log.e("DownloadService", "Extraction failed: ${error.message}", error)
                         showExtractionCompleteNotification(notificationId, fileName, false, error.message)
                     }
                 )
             } catch (e: Exception) {
+                Log.e("DownloadService", "Exception during extraction", e)
                 showExtractionCompleteNotification(notificationId, fileName, false, e.message)
             }
         }
@@ -589,9 +643,9 @@ class DownloadService : Service() {
     
     private fun showExtractionNotification(notificationId: Int, fileName: String, extractedFiles: Int, totalFiles: Int) {
         val text = if (totalFiles > 0) {
-            "Extracting... $extractedFiles/$totalFiles files"
+            "$extractedFiles of $totalFiles files extracted"
         } else {
-            "Starting extraction..."
+            "Preparing extraction..."
         }
         
         val progress = if (totalFiles > 0) ((extractedFiles * 100) / totalFiles) else 0
@@ -602,7 +656,14 @@ class DownloadService : Service() {
             .setSmallIcon(android.R.drawable.stat_sys_download_done)
             .setProgress(100, progress, totalFiles == 0)
             .setOngoing(true)
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(
+                if (totalFiles > 0) {
+                    "Extracting RAR archive\n$extractedFiles of $totalFiles files extracted\n${progress}% complete"
+                } else {
+                    "Preparing to extract RAR archive..."
+                }
+            ))
             .build()
         
         notificationManager.notify(notificationId + 10000, notification)
@@ -612,14 +673,25 @@ class DownloadService : Service() {
         notificationManager.cancel(notificationId + 10000)
         
         val title = if (success) "Extraction Complete" else "Extraction Failed"
-        val text = if (success) fileName else "$fileName: ${errorMessage ?: "Unknown error"}"
+        val text = if (success) {
+            "$fileName extracted successfully"
+        } else {
+            "Failed to extract $fileName"
+        }
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
             .setContentText(text)
             .setSmallIcon(if (success) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
             .setAutoCancel(true)
-            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(
+                if (success) {
+                    "$fileName has been extracted successfully"
+                } else {
+                    "Failed to extract $fileName\nError: ${errorMessage ?: "Unknown error"}"
+                }
+            ))
             .build()
         
         notificationManager.notify(notificationId, notification)

@@ -21,32 +21,52 @@ class RarExtractor(private val context: Context) {
         onProgress: (extractedFiles: Int, totalFiles: Int, currentFile: String) -> Unit
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
+            Log.d("RarExtractor", "=== Starting RAR extraction ===")
+            Log.d("RarExtractor", "Source: $rarFilePath")
+            Log.d("RarExtractor", "Destination: $destinationPath")
+            
             if (destinationPath.startsWith("content://")) {
+                Log.d("RarExtractor", "Using URI extraction method")
                 return@withContext extractRarFileToUri(rarFilePath, destinationPath, onProgress)
             }
             
             val rarFile = File(rarFilePath)
             if (!rarFile.exists()) {
+                Log.e("RarExtractor", "RAR file not found: $rarFilePath")
                 return@withContext Result.failure(Exception("RAR file not found"))
             }
             
+            Log.d("RarExtractor", "RAR file size: ${rarFile.length() / 1024 / 1024} MB")
+            
             val destinationDir = File(destinationPath)
             if (!destinationDir.exists()) {
-                destinationDir.mkdirs()
+                val created = destinationDir.mkdirs()
+                Log.d("RarExtractor", "Created destination directory: $created")
             }
             
+            if (!destinationDir.canWrite()) {
+                Log.e("RarExtractor", "Destination directory is not writable")
+                return@withContext Result.failure(Exception("Destination directory is not writable"))
+            }
+            
+            Log.d("RarExtractor", "Opening RAR archive...")
             val archive = Archive(rarFile)
             val headers = archive.fileHeaders
             val totalFiles = headers.size
             var extractedFiles = 0
             
+            Log.d("RarExtractor", "Total files in archive: $totalFiles")
+            
             for (header: FileHeader in headers) {
                 if (header.isDirectory) {
                     val dir = File(destinationDir, header.fileName)
                     dir.mkdirs()
+                    Log.d("RarExtractor", "Created directory: ${header.fileName}")
                 } else {
                     val outputFile = File(destinationDir, header.fileName)
                     outputFile.parentFile?.mkdirs()
+                    
+                    Log.d("RarExtractor", "Extracting: ${header.fileName} (${header.fullUnpackSize / 1024} KB)")
                     
                     FileOutputStream(outputFile).use { output ->
                         archive.extractFile(header, output)
@@ -54,10 +74,17 @@ class RarExtractor(private val context: Context) {
                     
                     extractedFiles++
                     onProgress(extractedFiles, totalFiles, header.fileName)
+                    
+                    if (extractedFiles % 10 == 0) {
+                        Log.d("RarExtractor", "Progress: $extractedFiles/$totalFiles files extracted")
+                    }
                 }
             }
             
             archive.close()
+            
+            Log.d("RarExtractor", "=== Extraction completed successfully ===")
+            Log.d("RarExtractor", "Extracted $extractedFiles files to $destinationPath")
             
             Result.success(destinationPath)
         } catch (e: RarException) {

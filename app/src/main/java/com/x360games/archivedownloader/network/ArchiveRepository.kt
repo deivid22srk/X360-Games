@@ -1,6 +1,7 @@
 package com.x360games.archivedownloader.network
 
 import android.content.Context
+import android.media.MediaScannerConnection
 import android.net.Uri
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
@@ -220,6 +221,9 @@ class ArchiveRepository(private val context: Context) {
             }
             
             Log.d("ArchiveRepository", "Server supports ranges! Starting multi-part download with $parts parts...")
+            Log.d("ArchiveRepository", "Destination file: ${file.absolutePath}")
+            Log.d("ArchiveRepository", "Parent dir exists: ${file.parentFile?.exists()}")
+            Log.d("ArchiveRepository", "Parent dir writable: ${file.parentFile?.canWrite()}")
             
             return@withContext downloadFileMultiPart(
                 fileUrl, file, totalBytes, parts, cookie, existingParts, onProgress, onPartProgress, onSavePartProgress
@@ -297,35 +301,63 @@ class ArchiveRepository(private val context: Context) {
             
             if (!file.exists()) {
                 file.createNewFile()
+                Log.d("ArchiveRepository", "File created: ${file.absolutePath}")
             } else {
                 Log.d("ArchiveRepository", "File already exists with size: ${file.length()} bytes")
             }
             
-            RandomAccessFile(file, "rw").use { randomAccessFile ->
-                val fileChannel = randomAccessFile.channel
-                
-                if (fileChannel.size() < totalBytes) {
-                    Log.d("ArchiveRepository", "Allocating file space from ${fileChannel.size()} to $totalBytes bytes...")
-                    try {
-                        fileChannel.position(totalBytes - 1)
-                        randomAccessFile.write(0)
-                        fileChannel.force(true)
-                        randomAccessFile.fd.sync()
-                        Log.d("ArchiveRepository", "File space allocated by writing at end. File size: ${file.length()} bytes")
-                    } catch (e: Exception) {
-                        Log.w("ArchiveRepository", "Failed to allocate by writing, trying setLength: ${e.message}")
-                        try {
-                            randomAccessFile.setLength(totalBytes)
-                            randomAccessFile.fd.sync()
-                            Log.d("ArchiveRepository", "File space allocated via setLength. File size: ${file.length()} bytes")
-                        } catch (e2: Exception) {
-                            Log.e("ArchiveRepository", "Failed to allocate file space: ${e2.message}")
+            Log.d("ArchiveRepository", "Allocating file space for ${totalBytes / 1024 / 1024} MB...")
+            
+            try {
+                RandomAccessFile(file, "rw").use { raf ->
+                    val currentSize = raf.length()
+                    
+                    if (currentSize < totalBytes) {
+                        Log.d("ArchiveRepository", "Current: ${currentSize / 1024 / 1024} MB, Target: ${totalBytes / 1024 / 1024} MB")
+                        
+                        raf.setLength(totalBytes)
+                        
+                        val writePositions = listOf(
+                            0L,
+                            totalBytes / 4,
+                            totalBytes / 2,
+                            (totalBytes * 3) / 4,
+                            totalBytes - 1
+                        )
+                        
+                        for (pos in writePositions) {
+                            raf.seek(pos)
+                            raf.write(0)
                         }
+                        
+                        raf.channel.force(true)
+                        raf.fd.sync()
+                        
+                        Log.d("ArchiveRepository", "File allocated: ${file.length()} bytes")
+                    } else {
+                        Log.d("ArchiveRepository", "File already has size: ${currentSize / 1024 / 1024} MB")
                     }
-                } else {
-                    Log.d("ArchiveRepository", "File already has correct size: ${fileChannel.size()} bytes")
                 }
                 
+                Thread.sleep(100)
+                
+                val verifiedSize = file.length()
+                Log.d("ArchiveRepository", "Verified size: ${verifiedSize / 1024 / 1024} MB (expected: ${totalBytes / 1024 / 1024} MB)")
+                Log.d("ArchiveRepository", "File path: ${file.absolutePath}")
+                
+                MediaScannerConnection.scanFile(
+                    context,
+                    arrayOf(file.absolutePath),
+                    null
+                ) { path, uri ->
+                    Log.d("ArchiveRepository", "Media scanner notified for: $path")
+                }
+                
+            } catch (e: Exception) {
+                Log.e("ArchiveRepository", "Error allocating file: ${e.message}", e)
+            }
+            
+            RandomAccessFile(file, "rw").use { randomAccessFile ->
                 val jobs = (0 until parts).map { partIndex ->
                     async {
                         val start = partIndex * partSize
@@ -382,6 +414,16 @@ class ArchiveRepository(private val context: Context) {
                 jobs.awaitAll()
                 Log.d("ArchiveRepository", "=== All parts downloaded successfully ===")
             }
+            
+            MediaScannerConnection.scanFile(
+                context,
+                arrayOf(file.absolutePath),
+                null
+            ) { path, uri ->
+                Log.d("ArchiveRepository", "Download completed - Media scanner notified for: $path")
+            }
+            
+            Log.d("ArchiveRepository", "Final file size: ${file.length()} bytes (${file.length() / 1024 / 1024} MB)")
             
             onProgress(totalBytes, 0)
             Result.success(file.absolutePath)

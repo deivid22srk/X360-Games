@@ -189,6 +189,16 @@ fun DownloadManagerScreen(
                             }
                             context.startService(intent)
                         },
+                        onExtract = {
+                            val intent = Intent(context, DownloadService::class.java).apply {
+                                action = DownloadService.ACTION_EXTRACT
+                                putExtra(DownloadService.EXTRA_DOWNLOAD_ID, download.id)
+                                putExtra(DownloadService.EXTRA_FILE_PATH, download.destinationPath)
+                                putExtra(DownloadService.EXTRA_FILE_NAME, download.fileName)
+                                putExtra(DownloadService.EXTRA_NOTIFICATION_ID, download.notificationId)
+                            }
+                            context.startService(intent)
+                        },
                         modifier = Modifier.animateItemPlacement()
                     )
                 }
@@ -302,6 +312,7 @@ fun DownloadItemCard(
     onPause: () -> Unit,
     onResume: () -> Unit,
     onCancel: () -> Unit,
+    onExtract: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val infiniteTransition = rememberInfiniteTransition(label = "downloading")
@@ -570,9 +581,11 @@ fun DownloadItemCard(
                     
                     ActionButtons(
                         status = download.status,
+                        fileName = download.fileName,
                         onPause = onPause,
                         onResume = onResume,
-                        onCancel = onCancel
+                        onCancel = onCancel,
+                        onExtract = onExtract
                     )
                 }
             }
@@ -583,9 +596,11 @@ fun DownloadItemCard(
 @Composable
 fun ActionButtons(
     status: DownloadStatus,
+    fileName: String,
     onPause: () -> Unit,
     onResume: () -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onExtract: () -> Unit
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -659,6 +674,22 @@ fun ActionButtons(
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text("Cancel")
+                }
+            }
+            DownloadStatus.COMPLETED -> {
+                if (fileName.endsWith(".rar", ignoreCase = true)) {
+                    FilledTonalButton(
+                        onClick = onExtract,
+                        contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                    ) {
+                        Icon(
+                            Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text("Extract")
+                    }
                 }
             }
             else -> {}

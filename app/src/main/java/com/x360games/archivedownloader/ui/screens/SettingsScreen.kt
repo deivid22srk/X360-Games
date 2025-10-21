@@ -378,30 +378,28 @@ fun SettingsScreen(
                     )
                 )
                 
-                if (autoExtract) {
-                    HorizontalDivider()
-                    
-                    ListItem(
-                        modifier = Modifier.clickable { extractionFolderPickerLauncher.launch(null) },
-                        headlineContent = { Text("Extraction Folder") },
-                        supportingContent = { 
-                            Text(
-                                text = extractionPath ?: "Same as download folder",
-                                style = MaterialTheme.typography.bodySmall
-                            )
-                        },
-                        leadingContent = {
-                            Icon(
-                                imageVector = Icons.Default.FolderOpen,
-                                contentDescription = null,
-                                tint = MaterialTheme.colorScheme.primary
-                            )
-                        },
-                        colors = ListItemDefaults.colors(
-                            containerColor = MaterialTheme.colorScheme.surface
+                HorizontalDivider()
+                
+                ListItem(
+                    modifier = Modifier.clickable { extractionFolderPickerLauncher.launch(null) },
+                    headlineContent = { Text("Extraction Folder") },
+                    supportingContent = { 
+                        Text(
+                            text = extractionPath ?: "Same as download folder",
+                            style = MaterialTheme.typography.bodySmall
                         )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.FolderOpen,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface
                     )
-                }
+                )
             }
         }
     }
