@@ -70,6 +70,39 @@ fun ToolsScreen(
         )
     }
     
+    // Dialog de cópia
+    if (uiState.isCopying) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Preparando arquivo") },
+            text = {
+                Column(
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text("Copiando ISO para área de trabalho...")
+                    
+                    LinearProgressIndicator(
+                        progress = { uiState.copyProgress },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    
+                    Text(
+                        text = "${(uiState.copyProgress * 100).toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    
+                    Text(
+                        text = "Isso pode levar alguns minutos...",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            },
+            confirmButton = { }
+        )
+    }
+    
     Scaffold(
         topBar = {
             TopAppBar(

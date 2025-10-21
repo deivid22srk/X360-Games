@@ -131,10 +131,12 @@ class Iso2GodService : Service() {
                     onSuccess = { godPath ->
                         Log.d("Iso2GodService", "Conversion completed: $godPath")
                         showCompletionNotification(isoFile.name, true)
+                        cleanupTempFile(isoPath)
                     },
                     onFailure = { error ->
                         Log.e("Iso2GodService", "Conversion failed", error)
                         showCompletionNotification(isoFile.name, false, error.message)
+                        cleanupTempFile(isoPath)
                     }
                 )
                 
@@ -154,6 +156,20 @@ class Iso2GodService : Service() {
     private fun cancelConversion() {
         currentConversionJob?.cancel()
         currentConversionJob = null
+    }
+    
+    private fun cleanupTempFile(isoPath: String) {
+        try {
+            val isoFile = File(isoPath)
+            // Apenas deletar se estiver no diretório temporário do app
+            if (isoPath.contains("iso_temp")) {
+                if (isoFile.exists() && isoFile.delete()) {
+                    Log.d("Iso2GodService", "Cleaned up temp file: $isoPath")
+                }
+            }
+        } catch (e: Exception) {
+            Log.e("Iso2GodService", "Error cleaning up temp file", e)
+        }
     }
     
     private fun updateProgressNotification(fileName: String, progress: Float, status: String) {

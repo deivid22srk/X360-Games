@@ -23,7 +23,9 @@ data class ToolsUiState(
     val conversionProgress: Float = 0f,
     val conversionStatus: String? = null,
     val errorMessage: String? = null,
-    val isProcessing: Boolean = false
+    val isProcessing: Boolean = false,
+    val isCopying: Boolean = false,
+    val copyProgress: Float = 0f
 )
 
 class ToolsViewModel(application: Application) : AndroidViewModel(application) {
@@ -34,21 +36,17 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
     fun onIsoFileSelected(context: Context, uri: Uri) {
         viewModelScope.launch {
             try {
-                // Mostrar que está processando
                 _uiState.value = _uiState.value.copy(
                     isProcessing = true,
                     errorMessage = null
                 )
                 
-                // Obter informações do arquivo em background
-                val (fileName, filePath) = withContext(Dispatchers.IO) {
-                    val name = FileUtils.getFileNameFromUri(context, uri) ?: "unknown.iso"
-                    val path = FileUtils.getRealPathFromUri(context, uri)
-                    Pair(name, path)
+                // Obter informações do arquivo
+                val fileName = withContext(Dispatchers.IO) {
+                    FileUtils.getFileNameFromUri(context, uri) ?: "unknown.iso"
                 }
                 
                 Log.d("ToolsViewModel", "ISO file selected: $fileName")
-                Log.d("ToolsViewModel", "Real path: $filePath")
                 
                 // Validar extensão
                 if (!fileName.endsWith(".iso", ignoreCase = true)) {
@@ -59,55 +57,117 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
                     return@launch
                 }
                 
-                // Verificar se conseguiu obter o caminho real
-                if (filePath == null) {
-                    _uiState.value = _uiState.value.copy(
-                        isProcessing = false,
-                        errorMessage = "Não foi possível acessar o arquivo. Por favor, copie o arquivo ISO para a pasta Downloads e tente novamente."
-                    )
-                    return@launch
+                val fileSize = withContext(Dispatchers.IO) {
+                    FileUtils.getFileSizeFromUri(context, uri)
                 }
                 
-                // Verificar se o arquivo existe
-                val isoFile = File(filePath)
-                if (!isoFile.exists()) {
-                    _uiState.value = _uiState.value.copy(
-                        isProcessing = false,
-                        errorMessage = "Arquivo não encontrado: $filePath"
-                    )
-                    return@launch
-                }
-                
-                if (!isoFile.canRead()) {
-                    _uiState.value = _uiState.value.copy(
-                        isProcessing = false,
-                        errorMessage = "Sem permissão para ler o arquivo. Verifique as permissões de armazenamento."
-                    )
-                    return@launch
-                }
-                
-                val fileSize = FileUtils.getFileSizeFromUri(context, uri)
                 Log.d("ToolsViewModel", "File size: ${FileUtils.formatFileSize(fileSize)}")
+                
+                // Validar tamanho (máximo 15GB)
+                val maxSize = 15L * 1024L * 1024L * 1024L // 15GB
+                if (fileSize > maxSize) {
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        errorMessage = "Arquivo muito grande (${FileUtils.formatFileSize(fileSize)}). Máximo: 15GB"
+                    )
+                    return@launch
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
+                    isCopying = true,
+                    copyProgress = 0f
+                )
+                
+                // Copiar arquivo via ContentResolver para local acessível
+                val tempIsoFile = withContext(Dispatchers.IO) {
+                    copyIsoFileFromUri(context, uri, fileName, fileSize)
+                }
+                
+                if (tempIsoFile == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isCopying = false,
+                        errorMessage = "Erro ao preparar arquivo para conversão"
+                    )
+                    return@launch
+                }
+                
+                _uiState.value = _uiState.value.copy(
+                    isCopying = false
+                )
                 
                 // Preparar diretório de saída
                 val outputPath = FileUtils.getDefaultDownloadDirectory(context)
                 val godOutputPath = File(outputPath, "GOD")
                 godOutputPath.mkdirs()
                 
-                _uiState.value = _uiState.value.copy(
-                    isProcessing = false
-                )
-                
                 // Iniciar conversão
-                startConversion(filePath, godOutputPath.absolutePath)
+                startConversion(tempIsoFile.absolutePath, godOutputPath.absolutePath)
                 
             } catch (e: Exception) {
                 Log.e("ToolsViewModel", "Error selecting ISO file", e)
                 _uiState.value = _uiState.value.copy(
                     isProcessing = false,
+                    isCopying = false,
                     errorMessage = "Erro ao processar arquivo: ${e.message}"
                 )
             }
+        }
+    }
+    
+    private fun copyIsoFileFromUri(
+        context: Context,
+        uri: Uri,
+        fileName: String,
+        fileSize: Long
+    ): File? {
+        try {
+            // Criar diretório temporário no armazenamento do app
+            val tempDir = File(context.getExternalFilesDir(null), "iso_temp")
+            tempDir.mkdirs()
+            
+            // Limpar arquivos antigos
+            tempDir.listFiles()?.forEach { it.delete() }
+            
+            val tempFile = File(tempDir, fileName)
+            
+            Log.d("ToolsViewModel", "Copying ISO to: ${tempFile.absolutePath}")
+            
+            // Abrir InputStream via ContentResolver
+            context.contentResolver.openInputStream(uri)?.use { inputStream ->
+                tempFile.outputStream().use { outputStream ->
+                    val buffer = ByteArray(8192) // 8KB buffer
+                    var totalCopied = 0L
+                    var read: Int
+                    var lastProgressUpdate = 0f
+                    
+                    while (inputStream.read(buffer).also { read = it } != -1) {
+                        outputStream.write(buffer, 0, read)
+                        totalCopied += read
+                        
+                        // Atualizar progresso a cada 1%
+                        val progress = totalCopied.toFloat() / fileSize.toFloat()
+                        if (progress - lastProgressUpdate >= 0.01f) {
+                            _uiState.value = _uiState.value.copy(
+                                copyProgress = progress
+                            )
+                            lastProgressUpdate = progress
+                        }
+                    }
+                    
+                    outputStream.flush()
+                }
+            } ?: run {
+                Log.e("ToolsViewModel", "Failed to open InputStream from URI")
+                return null
+            }
+            
+            Log.d("ToolsViewModel", "ISO copied successfully: ${tempFile.length()} bytes")
+            return tempFile
+            
+        } catch (e: Exception) {
+            Log.e("ToolsViewModel", "Error copying ISO file", e)
+            return null
         }
     }
     
