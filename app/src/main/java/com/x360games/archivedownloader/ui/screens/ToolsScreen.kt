@@ -1,5 +1,8 @@
 package com.x360games.archivedownloader.ui.screens
 
+import android.net.Uri
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -10,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.x360games.archivedownloader.viewmodel.ToolsViewModel
@@ -21,6 +25,28 @@ fun ToolsScreen(
     viewModel: ToolsViewModel = viewModel()
 ) {
     val uiState by viewModel.uiState.collectAsState()
+    val context = LocalContext.current
+    
+    val filePickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent()
+    ) { uri: Uri? ->
+        uri?.let {
+            viewModel.onIsoFileSelected(context, it)
+        }
+    }
+    
+    uiState.errorMessage?.let { error ->
+        AlertDialog(
+            onDismissRequest = { viewModel.clearError() },
+            title = { Text("Erro") },
+            text = { Text(error) },
+            confirmButton = {
+                TextButton(onClick = { viewModel.clearError() }) {
+                    Text("OK")
+                }
+            }
+        )
+    }
     
     Scaffold(
         topBar = {
@@ -59,7 +85,7 @@ fun ToolsScreen(
             Spacer(modifier = Modifier.height(8.dp))
             
             Iso2GodToolCard(
-                onConvertClick = { viewModel.selectIsoFile() },
+                onConvertClick = { filePickerLauncher.launch("*/*") },
                 isConverting = uiState.isConverting,
                 progress = uiState.conversionProgress,
                 status = uiState.conversionStatus
