@@ -162,7 +162,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
-        filterItems(query)
+        Log.d("MainViewModel", "Search query updated to: '$query', allItems size: ${allItems.size}")
+        if (allItems.isNotEmpty()) {
+            filterItems(query)
+        } else {
+            Log.w("MainViewModel", "Cannot filter - allItems is empty")
+        }
     }
     
     private fun filterItems(query: String) {
@@ -170,12 +175,16 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             allItems
         } else {
             allItems.filter { item ->
-                item.title.contains(query, ignoreCase = true) ||
-                item.id.contains(query, ignoreCase = true)
+                val matchesTitle = item.title.contains(query, ignoreCase = true)
+                val matchesId = item.id.contains(query, ignoreCase = true)
+                matchesTitle || matchesId
             }
         }
         _filteredItems.value = filtered
         Log.d("MainViewModel", "Filtered items: ${filtered.size} out of ${allItems.size} (query: '$query')")
+        if (filtered.isEmpty() && query.isNotBlank()) {
+            Log.d("MainViewModel", "No items matched the search query")
+        }
     }
     
     fun toggleItemExpansion(itemId: String) {
