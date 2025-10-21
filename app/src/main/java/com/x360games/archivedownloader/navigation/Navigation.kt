@@ -59,9 +59,11 @@ fun NavigationGraph(navController: NavHostController) {
         
         composable(Screen.DownloadManager.route) {
             val downloads by downloadViewModel.allDownloads.collectAsState()
+            val partsProgress by downloadViewModel.partsProgress.collectAsState()
             
             DownloadManagerScreen(
                 downloads = downloads,
+                partsProgress = partsProgress,
                 onNavigateBack = {
                     navController.popBackStack()
                 },

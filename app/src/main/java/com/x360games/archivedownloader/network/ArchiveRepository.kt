@@ -171,12 +171,13 @@ class ArchiveRepository(private val context: Context) {
         existingBytes: Long = 0,
         cookie: String? = null,
         parts: Int = 4,
-        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit,
+        onPartProgress: ((partIndex: Int, partBytes: Long, partTotal: Long) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             if (destinationPath.startsWith("content://")) {
                 return@withContext downloadFileResumableUri(
-                    fileUrl, destinationPath, existingBytes, cookie, parts, onProgress
+                    fileUrl, destinationPath, existingBytes, cookie, parts, onProgress, onPartProgress
                 )
             }
             
@@ -218,7 +219,7 @@ class ArchiveRepository(private val context: Context) {
             Log.d("ArchiveRepository", "Server supports ranges! Starting multi-part download with $parts parts...")
             
             return@withContext downloadFileMultiPart(
-                fileUrl, file, totalBytes, parts, cookie, onProgress
+                fileUrl, file, totalBytes, parts, cookie, onProgress, onPartProgress
             )
             
         } catch (e: Exception) {
@@ -409,7 +410,7 @@ class ArchiveRepository(private val context: Context) {
                     currentSpeed = if (currentSpeed == 0L) {
                         sampleSpeed
                     } else {
-                        ((currentSpeed * 3) + sampleSpeed) / 4
+                        ((currentSpeed * 9) + sampleSpeed) / 10
                     }
                     
                     speedSampleStart = currentTime
@@ -429,7 +430,13 @@ class ArchiveRepository(private val context: Context) {
                     progressMutex.withLock {
                         val bytesDiff = totalDownloaded - lastDownloadedBytes.get()
                         val timeDiff = currentTime - lastUpdateTime.get()
-                        val reportSpeed = if (timeDiff > 0) (bytesDiff * 1000) / timeDiff else currentSpeed
+                        
+                        val instantSpeed = if (timeDiff > 0) (bytesDiff * 1000) / timeDiff else 0L
+                        val reportSpeed = if (currentSpeed > 0) {
+                            ((currentSpeed * 7) + (instantSpeed * 3)) / 10
+                        } else {
+                            instantSpeed
+                        }
                         
                         onProgress(totalDownloaded, reportSpeed)
                         
@@ -555,7 +562,8 @@ class ArchiveRepository(private val context: Context) {
         existingBytes: Long = 0,
         cookie: String? = null,
         parts: Int = 4,
-        onProgress: (downloadedBytes: Long, speed: Long) -> Unit
+        onProgress: (downloadedBytes: Long, speed: Long) -> Unit,
+        onPartProgress: ((partIndex: Int, partBytes: Long, partTotal: Long) -> Unit)? = null
     ): Result<String> = withContext(Dispatchers.IO) {
         try {
             val uri = Uri.parse(destinationUri)
@@ -593,7 +601,7 @@ class ArchiveRepository(private val context: Context) {
             val tempFile = File(context.cacheDir, "temp_download_${System.currentTimeMillis()}.tmp")
             try {
                 val multiPartResult = downloadFileMultiPart(
-                    fileUrl, tempFile, totalBytes, parts, cookie, onProgress
+                    fileUrl, tempFile, totalBytes, parts, cookie, onProgress, onPartProgress
                 )
                 
                 if (multiPartResult.isSuccess) {

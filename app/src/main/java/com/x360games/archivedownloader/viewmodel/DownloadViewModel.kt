@@ -3,9 +3,11 @@ package com.x360games.archivedownloader.viewmodel
 import android.app.Application
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
+import com.x360games.archivedownloader.data.DownloadProgressTracker
 import com.x360games.archivedownloader.database.AppDatabase
 import com.x360games.archivedownloader.database.DownloadEntity
 import com.x360games.archivedownloader.database.SpeedHistoryEntity
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.stateIn
@@ -16,6 +18,8 @@ class DownloadViewModel(application: Application) : AndroidViewModel(application
     private val database = AppDatabase.getDatabase(application)
     private val downloadDao = database.downloadDao()
     private val speedHistoryDao = database.speedHistoryDao()
+    
+    val partsProgress: StateFlow<Map<Long, Map<Int, Long>>> = DownloadProgressTracker.partsProgress
     
     val allDownloads: StateFlow<List<DownloadEntity>> = downloadDao.getAllDownloads()
         .stateIn(

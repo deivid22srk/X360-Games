@@ -34,6 +34,7 @@ import com.x360games.archivedownloader.utils.FileUtils
 @Composable
 fun DownloadManagerScreen(
     downloads: List<DownloadEntity>,
+    partsProgress: Map<Long, Map<Int, Long>>,
     onNavigateBack: () -> Unit,
     onNavigateToDetails: (Long) -> Unit,
     onClearFinished: () -> Unit,
@@ -135,8 +136,11 @@ fun DownloadManagerScreen(
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(downloads, key = { it.id }) { download ->
+                    val downloadPartsProgress = partsProgress[download.id] ?: emptyMap()
+                    
                     DownloadItemCard(
                         download = download,
+                        partsProgress = downloadPartsProgress,
                         isSelected = selectedDownloads.contains(download.id),
                         selectionMode = selectionMode,
                         onSelectionChanged = { selected ->
@@ -289,6 +293,7 @@ fun EmptyState(modifier: Modifier = Modifier) {
 @Composable
 fun DownloadItemCard(
     download: DownloadEntity,
+    partsProgress: Map<Int, Long>,
     isSelected: Boolean,
     selectionMode: Boolean,
     onSelectionChanged: (Boolean) -> Unit,
@@ -416,15 +421,28 @@ fun DownloadItemCard(
                             horizontalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
                             repeat(download.downloadParts) { partIndex ->
-                                val partProgress = download.getPartProgress(partIndex).coerceIn(0f, 1f)
+                                val partSize = download.totalBytes / download.downloadParts
+                                val partTotal = if (partIndex == download.downloadParts - 1) {
+                                    partSize + (download.totalBytes % download.downloadParts)
+                                } else {
+                                    partSize
+                                }
+                                
+                                val partBytes = partsProgress[partIndex] ?: 0L
+                                val partProgress = if (partTotal > 0) {
+                                    (partBytes.toFloat() / partTotal.toFloat()).coerceIn(0f, 1f)
+                                } else {
+                                    0f
+                                }
+                                
                                 val animatedPartProgress by animateFloatAsState(
-                                    targetValue = if (partProgress > 0f) partProgress else (progress * (0.8f + kotlin.random.Random.nextFloat() * 0.4f)),
+                                    targetValue = partProgress,
                                     animationSpec = tween(500),
                                     label = "partProgress$partIndex"
                                 )
                                 
                                 LinearProgressIndicator(
-                                    progress = animatedPartProgress.coerceIn(0f, 1f),
+                                    progress = animatedPartProgress,
                                     modifier = Modifier
                                         .weight(1f)
                                         .height(3.dp)

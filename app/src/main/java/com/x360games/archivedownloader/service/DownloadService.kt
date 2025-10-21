@@ -12,6 +12,7 @@ import android.os.IBinder
 import androidx.core.app.NotificationCompat
 import com.x360games.archivedownloader.MainActivity
 import com.x360games.archivedownloader.R
+import com.x360games.archivedownloader.data.DownloadProgressTracker
 import com.x360games.archivedownloader.database.AppDatabase
 import com.x360games.archivedownloader.database.DownloadEntity
 import com.x360games.archivedownloader.database.DownloadStatus
@@ -39,7 +40,6 @@ class DownloadService : Service() {
     
     private val activeDownloads = mutableMapOf<Long, Job>()
     private val downloadStates = MutableStateFlow<Map<Long, DownloadProgressState>>(emptyMap())
-    private val downloadPartsProgress = MutableStateFlow<Map<Long, Map<Int, Long>>>(emptyMap())
     private val queuedDownloads = mutableListOf<Long>()
     
     private var isForeground = false
@@ -261,6 +261,9 @@ class DownloadService : Service() {
                             updateDownloadState(downloadId, downloadedBytes, speed, download.totalBytes)
                             updateNotification(downloadId, download.fileName, downloadedBytes, download.totalBytes, speed)
                         }
+                    },
+                    onPartProgress = { partIndex, partBytes, partTotal ->
+                        DownloadProgressTracker.updatePartProgress(downloadId, partIndex, partBytes)
                     }
                 )
                 
@@ -295,6 +298,7 @@ class DownloadService : Service() {
             } finally {
                 activeDownloads.remove(downloadId)
                 removeDownloadState(downloadId)
+                DownloadProgressTracker.clearPartProgress(downloadId)
                 processQueue()
                 checkStopService()
             }
@@ -406,6 +410,7 @@ class DownloadService : Service() {
                 notificationManager.cancel(it.notificationId)
             }
             removeDownloadState(downloadId)
+            DownloadProgressTracker.clearPartProgress(downloadId)
             processQueue()
             checkStopService()
         }
