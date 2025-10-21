@@ -20,7 +20,10 @@ data class DownloadEntity(
     val errorMessage: String? = null,
     val cookie: String? = null,
     val notificationId: Int = 0,
-    val downloadParts: Int = 1
+    val downloadParts: Int = 1,
+    val fileMD5: String? = null,
+    val fileSHA256: String? = null,
+    val hashVerified: Boolean = false
 )
 
 enum class DownloadStatus {

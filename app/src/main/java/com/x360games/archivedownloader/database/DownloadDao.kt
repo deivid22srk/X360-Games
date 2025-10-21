@@ -47,4 +47,7 @@ interface DownloadDao {
     
     @Query("SELECT COUNT(*) FROM downloads WHERE status = 'DOWNLOADING'")
     suspend fun getActiveDownloadsCount(): Int
+    
+    @Query("UPDATE downloads SET fileMD5 = :md5, fileSHA256 = :sha256, hashVerified = :verified WHERE id = :id")
+    suspend fun updateFileHash(id: Long, md5: String?, sha256: String?, verified: Boolean)
 }

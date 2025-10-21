@@ -750,28 +750,10 @@ class ArchiveRepository(private val context: Context) {
                 )
             }
             
-            Log.d("ArchiveRepository", "Server supports ranges! Using temp file for multi-part download...")
-            
-            val tempFile = File(context.cacheDir, "temp_download_${System.currentTimeMillis()}.tmp")
-            try {
-                val multiPartResult = downloadFileMultiPart(
-                    fileUrl, tempFile, totalBytes, parts, cookie, existingParts, onProgress, onPartProgress, onSavePartProgress
-                )
-                
-                if (multiPartResult.isSuccess) {
-                    Log.d("ArchiveRepository", "Multi-part download completed, copying to URI...")
-                    copyFileToUri(tempFile, uri)
-                    Log.d("ArchiveRepository", "=== URI download completed successfully ===")
-                    return@withContext Result.success(destinationUri)
-                } else {
-                    return@withContext multiPartResult.map { destinationUri }
-                }
-            } finally {
-                if (tempFile.exists()) {
-                    tempFile.delete()
-                    Log.d("ArchiveRepository", "Temp file deleted")
-                }
-            }
+            Log.d("ArchiveRepository", "Server supports ranges! Downloading directly to URI (multi-part not supported for URI)...")
+            return@withContext downloadFileResumableUriSinglePart(
+                fileUrl, destinationUri, 0, cookie, onProgress
+            )
             
         } catch (e: Exception) {
             Log.e("ArchiveRepository", "Error downloading file to URI", e)

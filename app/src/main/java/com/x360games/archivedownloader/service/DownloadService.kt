@@ -20,6 +20,7 @@ import com.x360games.archivedownloader.database.DownloadStatus
 import com.x360games.archivedownloader.database.SpeedHistoryEntity
 import com.x360games.archivedownloader.network.ArchiveRepository
 import com.x360games.archivedownloader.utils.FileUtils
+import com.x360games.archivedownloader.utils.HashUtils
 import com.x360games.archivedownloader.utils.PreferencesManager
 import com.x360games.archivedownloader.utils.RarExtractor
 import kotlinx.coroutines.flow.first
@@ -328,7 +329,26 @@ class DownloadService : Service() {
                         Log.d("DownloadService", "Path: $filePath")
                         
                         database.downloadDao().updateStatus(downloadId, DownloadStatus.COMPLETED)
-                        showCompletionNotification(download.notificationId, download.fileName, true)
+                        
+                        Log.d("DownloadService", "Calculating file integrity hashes...")
+                        showHashCalculationNotification(download.notificationId, download.fileName)
+                        
+                        val md5Result = HashUtils.calculateMD5(filePath)
+                        val sha256Result = HashUtils.calculateSHA256(filePath)
+                        
+                        val md5Hash = md5Result.getOrNull()
+                        val sha256Hash = sha256Result.getOrNull()
+                        
+                        if (md5Hash != null && sha256Hash != null) {
+                            Log.d("DownloadService", "MD5: $md5Hash")
+                            Log.d("DownloadService", "SHA-256: $sha256Hash")
+                            database.downloadDao().updateFileHash(downloadId, md5Hash, sha256Hash, true)
+                        } else {
+                            Log.e("DownloadService", "Failed to calculate hashes")
+                            database.downloadDao().updateFileHash(downloadId, null, null, false)
+                        }
+                        
+                        showCompletionNotification(download.notificationId, download.fileName, true, md5Hash, sha256Hash)
                         
                         val autoExtract = preferencesManager.autoExtract.first()
                         val isRarFile = download.fileName.endsWith(".rar", ignoreCase = true)
@@ -506,6 +526,19 @@ class DownloadService : Service() {
         serviceScope.launch {
             val pausedDownloads = database.downloadDao().getDownloadsByStatusSync(DownloadStatus.PAUSED)
             val downloadingDownloads = database.downloadDao().getDownloadsByStatusSync(DownloadStatus.DOWNLOADING)
+            val completedDownloads = database.downloadDao().getDownloadsByStatusSync(DownloadStatus.COMPLETED)
+            
+            completedDownloads.forEach { download ->
+                if (!download.hashVerified && !download.destinationPath.startsWith("content://")) {
+                    Log.d("DownloadService", "Verifying integrity of completed download: ${download.fileName}")
+                    val file = File(download.destinationPath)
+                    if (file.exists()) {
+                        verifyDownloadIntegrity(download)
+                    } else {
+                        Log.w("DownloadService", "Completed download file not found: ${download.destinationPath}")
+                    }
+                }
+            }
             
             pausedDownloads.forEach { download ->
                 database.downloadDao().updateStatus(download.id, DownloadStatus.PAUSED)
@@ -513,6 +546,46 @@ class DownloadService : Service() {
             
             downloadingDownloads.forEach { download ->
                 startDownload(download.id)
+            }
+        }
+    }
+    
+    private fun verifyDownloadIntegrity(download: DownloadEntity) {
+        serviceScope.launch {
+            try {
+                Log.d("DownloadService", "Calculating hashes for ${download.fileName}...")
+                
+                val md5Result = HashUtils.calculateMD5(download.destinationPath)
+                val sha256Result = HashUtils.calculateSHA256(download.destinationPath)
+                
+                val md5Hash = md5Result.getOrNull()
+                val sha256Hash = sha256Result.getOrNull()
+                
+                if (md5Hash != null && sha256Hash != null) {
+                    if (download.fileMD5 != null && download.fileSHA256 != null) {
+                        val md5Match = HashUtils.verifyHash(md5Hash, download.fileMD5)
+                        val sha256Match = HashUtils.verifyHash(sha256Hash, download.fileSHA256)
+                        
+                        if (!md5Match || !sha256Match) {
+                            Log.e("DownloadService", "Hash mismatch detected for ${download.fileName}! File may be corrupted.")
+                            database.downloadDao().updateStatusWithError(
+                                download.id,
+                                DownloadStatus.FAILED,
+                                "File integrity verification failed - file may be corrupted"
+                            )
+                        } else {
+                            Log.d("DownloadService", "Hash verification passed for ${download.fileName}")
+                            database.downloadDao().updateFileHash(download.id, md5Hash, sha256Hash, true)
+                        }
+                    } else {
+                        Log.d("DownloadService", "No existing hash to compare, storing calculated hashes")
+                        database.downloadDao().updateFileHash(download.id, md5Hash, sha256Hash, true)
+                    }
+                } else {
+                    Log.e("DownloadService", "Failed to calculate hashes for ${download.fileName}")
+                }
+            } catch (e: Exception) {
+                Log.e("DownloadService", "Error verifying download integrity", e)
             }
         }
     }
@@ -697,9 +770,30 @@ class DownloadService : Service() {
         notificationManager.notify(notificationId, notification)
     }
     
-    private fun showCompletionNotification(notificationId: Int, fileName: String, success: Boolean, errorMessage: String? = null) {
+    private fun showHashCalculationNotification(notificationId: Int, fileName: String) {
+        val notification = NotificationCompat.Builder(this, CHANNEL_ID)
+            .setContentTitle("Verifying File Integrity")
+            .setContentText(fileName)
+            .setSmallIcon(android.R.drawable.stat_sys_download_done)
+            .setProgress(0, 0, true)
+            .setOngoing(true)
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .build()
+        
+        notificationManager.notify(notificationId, notification)
+    }
+    
+    private fun showCompletionNotification(notificationId: Int, fileName: String, success: Boolean, md5Hash: String? = null, sha256Hash: String? = null, errorMessage: String? = null) {
         val title = if (success) "Download Complete" else "Download Failed"
         val text = if (success) fileName else "$fileName: ${errorMessage ?: "Unknown error"}"
+        
+        val bigText = if (success && md5Hash != null && sha256Hash != null) {
+            "$fileName\n\nFile integrity verified:\nMD5: ${md5Hash.take(16)}...\nSHA-256: ${sha256Hash.take(16)}..."
+        } else if (success) {
+            "$fileName\n\nFile integrity verification failed"
+        } else {
+            "$fileName\n\nError: ${errorMessage ?: "Unknown error"}"
+        }
         
         val notification = NotificationCompat.Builder(this, CHANNEL_ID)
             .setContentTitle(title)
@@ -707,6 +801,7 @@ class DownloadService : Service() {
             .setSmallIcon(if (success) android.R.drawable.stat_sys_download_done else android.R.drawable.stat_notify_error)
             .setAutoCancel(true)
             .setPriority(NotificationCompat.PRIORITY_DEFAULT)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(bigText))
             .build()
         
         notificationManager.notify(notificationId, notification)
