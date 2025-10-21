@@ -149,7 +149,7 @@ fun ArchiveItemCard(
                             )
                             
                             Text(
-                                text = item.collection,
+                                text = item.id,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = if (isExpanded) {
                                     MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.8f)
