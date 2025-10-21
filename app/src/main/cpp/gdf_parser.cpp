@@ -128,18 +128,45 @@ bool GDFParser::parseDirectory(
     uint32_t sector,
     uint32_t size
 ) {
+    // Limitar tamanho do diretório para evitar alocação excessiva
+    const uint32_t MAX_DIR_SIZE = 10 * 1024 * 1024; // 10MB
+    if (size > MAX_DIR_SIZE) {
+        LOGE("Directory size too large: %u bytes", size);
+        return false;
+    }
+    
+    // Limitar número de entries para evitar loop infinito
+    const size_t MAX_TOTAL_ENTRIES = 10000;
+    if (entries.size() >= MAX_TOTAL_ENTRIES) {
+        LOGE("Too many entries parsed: %zu", entries.size());
+        return false;
+    }
+    
     // Ir para o setor do diretório
     uint64_t offset = (uint64_t)sector * volDesc.sectorSize + volDesc.rootOffset;
     iso.seekg(offset);
+    
+    if (iso.fail()) {
+        LOGE("Failed to seek to directory at offset %llu", offset);
+        return false;
+    }
     
     // Ler todos os dados do diretório
     uint8_t* dirData = new uint8_t[size];
     iso.read((char*)dirData, size);
     
+    if (iso.gcount() != size) {
+        LOGE("Failed to read complete directory data");
+        delete[] dirData;
+        return false;
+    }
+    
     uint32_t position = 0;
+    uint32_t entriesInThisDir = 0;
+    const uint32_t MAX_ENTRIES_PER_DIR = 1000;
     
     // Parsear entries até o fim dos dados
-    while (position < size) {
+    while (position < size && entriesInThisDir < MAX_ENTRIES_PER_DIR) {
         // Ler GDFDirEntry
         if (position + 14 > size) break;
         
@@ -167,6 +194,12 @@ bool GDFParser::parseDirectory(
         uint8_t attributes = dirData[position++];
         uint8_t nameLength = dirData[position++];
         
+        // Validar tamanho do nome
+        if (nameLength > 255 || position + nameLength > size) {
+            LOGE("Invalid name length: %u at position %u", nameLength, position);
+            break;
+        }
+        
         // Ler nome
         char name[256] = {0};
         memcpy(name, &dirData[position], nameLength);
@@ -184,14 +217,22 @@ bool GDFParser::parseDirectory(
         entry.isDirectory = (attributes & 0x10) != 0;
         
         entries.push_back(entry);
+        entriesInThisDir++;
         
         LOGD("Entry: %s (Sector=%u, Size=%u, Dir=%d)",
              entry.name.c_str(), entry.sector, entry.size, entry.isDirectory);
         
-        // Se for diretório, parsear recursivamente
-        if (entry.isDirectory && entrySize > 0) {
-            parseDirectory(iso, volDesc, entrySector, entrySize);
+        // Se for diretório, parsear recursivamente (com limite de tamanho)
+        if (entry.isDirectory && entrySize > 0 && entrySize < MAX_DIR_SIZE) {
+            if (!parseDirectory(iso, volDesc, entrySector, entrySize)) {
+                LOGE("Failed to parse subdirectory: %s", entry.name.c_str());
+                // Continuar mesmo se falhar um subdiretório
+            }
         }
+    }
+    
+    if (entriesInThisDir >= MAX_ENTRIES_PER_DIR) {
+        LOGE("Warning: Directory has too many entries, some may be skipped");
     }
     
     delete[] dirData;

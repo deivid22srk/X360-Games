@@ -5,23 +5,25 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.os.Environment
-import android.provider.OpenableColumns
 import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.viewModelScope
 import com.x360games.archivedownloader.service.Iso2GodService
+import com.x360games.archivedownloader.utils.FileUtils
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 import java.io.File
-import java.io.FileOutputStream
 
 data class ToolsUiState(
     val isConverting: Boolean = false,
     val conversionProgress: Float = 0f,
     val conversionStatus: String? = null,
-    val errorMessage: String? = null
+    val errorMessage: String? = null,
+    val isProcessing: Boolean = false
 )
 
 class ToolsViewModel(application: Application) : AndroidViewModel(application) {
@@ -32,75 +34,80 @@ class ToolsViewModel(application: Application) : AndroidViewModel(application) {
     fun onIsoFileSelected(context: Context, uri: Uri) {
         viewModelScope.launch {
             try {
-                val fileName = getFileName(context, uri) ?: "unknown.iso"
-                Log.d("ToolsViewModel", "ISO file selected: $fileName")
-                
-                if (!fileName.endsWith(".iso", ignoreCase = true)) {
-                    _uiState.value = _uiState.value.copy(
-                        errorMessage = "Por favor, selecione um arquivo ISO válido"
-                    )
-                    return@launch
-                }
-                
+                // Mostrar que está processando
                 _uiState.value = _uiState.value.copy(
-                    conversionStatus = "Copiando arquivo ISO...",
+                    isProcessing = true,
                     errorMessage = null
                 )
                 
-                val tempIsoFile = copyUriToTempFile(context, uri, fileName)
-                if (tempIsoFile == null) {
+                // Obter informações do arquivo em background
+                val (fileName, filePath) = withContext(Dispatchers.IO) {
+                    val name = FileUtils.getFileNameFromUri(context, uri) ?: "unknown.iso"
+                    val path = FileUtils.getRealPathFromUri(context, uri)
+                    Pair(name, path)
+                }
+                
+                Log.d("ToolsViewModel", "ISO file selected: $fileName")
+                Log.d("ToolsViewModel", "Real path: $filePath")
+                
+                // Validar extensão
+                if (!fileName.endsWith(".iso", ignoreCase = true)) {
                     _uiState.value = _uiState.value.copy(
-                        errorMessage = "Erro ao copiar arquivo ISO"
+                        isProcessing = false,
+                        errorMessage = "Por favor, selecione um arquivo ISO válido (.iso)"
                     )
                     return@launch
                 }
                 
-                val outputPath = File(
-                    Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS),
-                    "X360Games/GOD"
-                )
-                outputPath.mkdirs()
+                // Verificar se conseguiu obter o caminho real
+                if (filePath == null) {
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        errorMessage = "Não foi possível acessar o arquivo. Por favor, copie o arquivo ISO para a pasta Downloads e tente novamente."
+                    )
+                    return@launch
+                }
                 
-                startConversion(tempIsoFile.absolutePath, outputPath.absolutePath)
+                // Verificar se o arquivo existe
+                val isoFile = File(filePath)
+                if (!isoFile.exists()) {
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        errorMessage = "Arquivo não encontrado: $filePath"
+                    )
+                    return@launch
+                }
+                
+                if (!isoFile.canRead()) {
+                    _uiState.value = _uiState.value.copy(
+                        isProcessing = false,
+                        errorMessage = "Sem permissão para ler o arquivo. Verifique as permissões de armazenamento."
+                    )
+                    return@launch
+                }
+                
+                val fileSize = FileUtils.getFileSizeFromUri(context, uri)
+                Log.d("ToolsViewModel", "File size: ${FileUtils.formatFileSize(fileSize)}")
+                
+                // Preparar diretório de saída
+                val outputPath = FileUtils.getDefaultDownloadDirectory(context)
+                val godOutputPath = File(outputPath, "GOD")
+                godOutputPath.mkdirs()
+                
+                _uiState.value = _uiState.value.copy(
+                    isProcessing = false
+                )
+                
+                // Iniciar conversão
+                startConversion(filePath, godOutputPath.absolutePath)
                 
             } catch (e: Exception) {
                 Log.e("ToolsViewModel", "Error selecting ISO file", e)
                 _uiState.value = _uiState.value.copy(
+                    isProcessing = false,
                     errorMessage = "Erro ao processar arquivo: ${e.message}"
                 )
             }
-        }
-    }
-    
-    private fun getFileName(context: Context, uri: Uri): String? {
-        var fileName: String? = null
-        context.contentResolver.query(uri, null, null, null, null)?.use { cursor ->
-            val nameIndex = cursor.getColumnIndex(OpenableColumns.DISPLAY_NAME)
-            if (cursor.moveToFirst() && nameIndex >= 0) {
-                fileName = cursor.getString(nameIndex)
-            }
-        }
-        return fileName
-    }
-    
-    private fun copyUriToTempFile(context: Context, uri: Uri, fileName: String): File? {
-        return try {
-            val tempDir = File(context.cacheDir, "iso_temp")
-            tempDir.mkdirs()
-            
-            val tempFile = File(tempDir, fileName)
-            
-            context.contentResolver.openInputStream(uri)?.use { inputStream ->
-                FileOutputStream(tempFile).use { outputStream ->
-                    inputStream.copyTo(outputStream)
-                }
-            }
-            
-            Log.d("ToolsViewModel", "ISO copied to: ${tempFile.absolutePath}")
-            tempFile
-        } catch (e: Exception) {
-            Log.e("ToolsViewModel", "Error copying URI to temp file", e)
-            null
         }
     }
     

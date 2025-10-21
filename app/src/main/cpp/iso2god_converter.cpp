@@ -96,6 +96,14 @@ void Iso2GodConverter::cancelConversion() {
 bool Iso2GodConverter::readIsoHeader(const std::string& isoPath, IsoInfo& info) {
     LOGD("Reading ISO header: %s", isoPath.c_str());
     
+    // Verificar se arquivo existe e é acessível
+    std::ifstream testFile(isoPath, std::ios::binary);
+    if (!testFile.is_open()) {
+        LOGE("Cannot open ISO file: %s", isoPath.c_str());
+        return false;
+    }
+    testFile.close();
+    
     GDFParser gdfParser;
     if (!gdfParser.parse(isoPath)) {
         LOGE("Failed to parse GDF");
@@ -110,20 +118,46 @@ bool Iso2GodConverter::readIsoHeader(const std::string& isoPath, IsoInfo& info) 
     
     LOGD("Found default.xex at sector %u, size %u", xexEntry->sector, xexEntry->size);
     
-    std::ifstream iso(isoPath, std::ios::binary);
-    if (!iso.is_open()) {
+    // Limitar tamanho do XEX para evitar alocar memória demais
+    if (xexEntry->size > 100 * 1024 * 1024) { // Máximo 100MB para XEX
+        LOGE("XEX file too large: %u bytes", xexEntry->size);
         delete xexEntry;
         return false;
     }
     
+    std::ifstream iso(isoPath, std::ios::binary);
+    if (!iso.is_open()) {
+        LOGE("Failed to open ISO for reading XEX");
+        delete xexEntry;
+        return false;
+    }
+    
+    // Usar ROOT_OFFSET do GDF (XGD2 = 0xFDA000)
     const uint32_t ROOT_OFFSET = 0xFDA000;
     const uint32_t SECTOR_SIZE = 2048;
     
     uint64_t xexOffset = ROOT_OFFSET + (uint64_t)xexEntry->sector * SECTOR_SIZE;
+    LOGD("Reading XEX from offset: 0x%llX", xexOffset);
+    
     iso.seekg(xexOffset);
+    if (iso.fail()) {
+        LOGE("Failed to seek to XEX offset");
+        iso.close();
+        delete xexEntry;
+        return false;
+    }
     
     uint8_t* xexData = new uint8_t[xexEntry->size];
     iso.read((char*)xexData, xexEntry->size);
+    
+    if (iso.gcount() != xexEntry->size) {
+        LOGE("Failed to read complete XEX data (read %ld of %u)", iso.gcount(), xexEntry->size);
+        delete[] xexData;
+        iso.close();
+        delete xexEntry;
+        return false;
+    }
+    
     iso.close();
     
     XexParser xexParser;
@@ -139,10 +173,13 @@ bool Iso2GodConverter::readIsoHeader(const std::string& isoPath, IsoInfo& info) 
     info.gameName = xexEntry->name;
     info.platform = "Xbox 360";
     
+    // Obter tamanho do arquivo
     std::ifstream isoFile(isoPath, std::ios::binary);
     isoFile.seekg(0, std::ios::end);
     info.sizeBytes = isoFile.tellg();
     isoFile.close();
+    
+    LOGD("ISO size: %llu bytes (%.2f GB)", info.sizeBytes, (double)info.sizeBytes / (1024*1024*1024));
     
     info.volumeDescriptor = "XBOX360";
     
@@ -205,7 +242,18 @@ bool Iso2GodConverter::convertData(
     uint32_t bytesInCurrentPart = 0;
     uint32_t totalBlocks = 0;
     
+    // Limitar tamanho máximo para evitar processamento infinito (15GB = tamanho máximo de DVD Xbox 360)
+    const uint64_t MAX_ISO_SIZE = 15ULL * 1024ULL * 1024ULL * 1024ULL;
+    if (totalBytes > MAX_ISO_SIZE) {
+        LOGE("ISO too large: %llu bytes (max: %llu)", totalBytes, MAX_ISO_SIZE);
+        isoFile.close();
+        return false;
+    }
+    
     const uint32_t MAX_PART_SIZE = BLOCK_PER_PART * BLOCK_SIZE;
+    const uint64_t expectedBlocks = (totalBytes + BLOCK_SIZE - 1) / BLOCK_SIZE;
+    
+    LOGD("Total bytes: %llu, Expected blocks: %llu", totalBytes, expectedBlocks);
     
     GodHashTables hashTables;
     
@@ -224,23 +272,49 @@ bool Iso2GodConverter::convertData(
     
     LOGD("Processing ISO blocks...");
     
+    uint32_t consecutiveFailures = 0;
+    const uint32_t MAX_CONSECUTIVE_FAILURES = 10;
+    
     while (processedBytes < totalBytes && !cancelled) {
+        // Verificar se ultrapassou o número esperado de blocos (proteção contra loop infinito)
+        if (totalBlocks > expectedBlocks + 100) {
+            LOGE("Block count exceeded expected (%u > %llu)", totalBlocks, expectedBlocks);
+            break;
+        }
+        
         memset(block, 0, BLOCK_SIZE);
         
         size_t toRead = std::min((uint64_t)BLOCK_SIZE, totalBytes - processedBytes);
         isoFile.read((char*)block, toRead);
         size_t actualRead = isoFile.gcount();
         
-        if (actualRead == 0 && processedBytes < totalBytes) {
-            LOGE("Failed to read from ISO at offset %llu", processedBytes);
-            break;
+        if (actualRead == 0) {
+            consecutiveFailures++;
+            if (consecutiveFailures >= MAX_CONSECUTIVE_FAILURES) {
+                LOGE("Too many consecutive read failures at offset %llu", processedBytes);
+                break;
+            }
+            if (processedBytes < totalBytes) {
+                LOGE("Failed to read from ISO at offset %llu (attempt %u)", processedBytes, consecutiveFailures);
+                continue;
+            } else {
+                break;
+            }
         }
+        
+        consecutiveFailures = 0;
         
         uint8_t hash[20];
         HashUtils::calculateSHA1(block, BLOCK_SIZE, hash);
         hashTables.addBlockHash(hash);
         
-        dataFile.write((char*)block, BLOCK_SIZE);
+        if (!dataFile.write((char*)block, BLOCK_SIZE)) {
+            LOGE("Failed to write block %u to data file", totalBlocks);
+            delete[] block;
+            dataFile.close();
+            isoFile.close();
+            return false;
+        }
         
         processedBytes += actualRead;
         bytesInCurrentPart += BLOCK_SIZE;
@@ -268,9 +342,13 @@ bool Iso2GodConverter::convertData(
             float progress = 0.15f + (0.75f * ((float)processedBytes / (float)totalBytes));
             char status[128];
             snprintf(status, sizeof(status), "Bloco %u de %llu (%.1f%%)",
-                     totalBlocks, totalBytes / BLOCK_SIZE,
+                     totalBlocks, expectedBlocks,
                      (float)processedBytes * 100.0f / (float)totalBytes);
             progressCallback(progress, status);
+            
+            LOGD("Progress: %u/%llu blocks, %llu/%llu bytes (%.1f%%)",
+                 totalBlocks, expectedBlocks, processedBytes, totalBytes,
+                 (float)processedBytes * 100.0f / (float)totalBytes);
         }
     }
     

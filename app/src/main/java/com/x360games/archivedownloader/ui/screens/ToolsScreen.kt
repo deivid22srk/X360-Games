@@ -35,6 +35,7 @@ fun ToolsScreen(
         }
     }
     
+    // Dialog de erro
     uiState.errorMessage?.let { error ->
         AlertDialog(
             onDismissRequest = { viewModel.clearError() },
@@ -45,6 +46,27 @@ fun ToolsScreen(
                     Text("OK")
                 }
             }
+        )
+    }
+    
+    // Dialog de processamento
+    if (uiState.isProcessing) {
+        AlertDialog(
+            onDismissRequest = { },
+            title = { Text("Processando") },
+            text = {
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp
+                    )
+                    Text("Verificando arquivo ISO...")
+                }
+            },
+            confirmButton = { }
         )
     }
     
