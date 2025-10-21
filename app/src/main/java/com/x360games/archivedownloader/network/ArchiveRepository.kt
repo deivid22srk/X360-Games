@@ -20,6 +20,7 @@ import java.io.File
 import java.io.FileOutputStream
 import java.io.RandomAccessFile
 import java.util.concurrent.atomic.AtomicLong
+import kotlin.coroutines.coroutineContext
 
 class ArchiveRepository(private val context: Context) {
     private val githubApi = RetrofitClient.githubApi
@@ -329,7 +330,7 @@ class ArchiveRepository(private val context: Context) {
             var currentPosition = start
             
             while (input.read(buffer).also { bytes = it } >= 0) {
-                ensureActive()
+                coroutineContext.ensureActive()
                 
                 synchronized(randomAccessFile) {
                     randomAccessFile.seek(currentPosition)
@@ -406,7 +407,7 @@ class ArchiveRepository(private val context: Context) {
                     var flushCounter = 0
                     
                     while (input.read(buffer).also { bytes = it } >= 0) {
-                        ensureActive()
+                        coroutineContext.ensureActive()
                         
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
@@ -480,7 +481,7 @@ class ArchiveRepository(private val context: Context) {
                     var flushCounter = 0
                     
                     while (input.read(buffer).also { bytes = it } >= 0) {
-                        ensureActive()
+                        coroutineContext.ensureActive()
                         
                         output.write(buffer, 0, bytes)
                         downloadedBytes += bytes
