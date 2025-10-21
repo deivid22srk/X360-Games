@@ -482,17 +482,12 @@ class ArchiveRepository(private val context: Context) {
                 speedSampleBytes += bytes
                 val totalDownloaded = downloadedBytesAtomic.addAndGet(bytes.toLong())
                 
+                val currentTime = System.currentTimeMillis()
+                
                 if (partIndex >= 0 && partProgressMap != null) {
                     val partDownloaded = partProgressMap[partIndex]?.addAndGet(bytes.toLong()) ?: 0L
                     onPartProgress?.invoke(partIndex, partDownloaded, partTotal)
-                    
-                    if (onSavePartProgress != null && currentTime % 1000 < 100) {
-                        val partEnd = partOriginalStart + partTotal - 1
-                        onSavePartProgress.invoke(partIndex, partOriginalStart, partEnd, partDownloaded, false)
-                    }
                 }
-                
-                val currentTime = System.currentTimeMillis()
                 val sampleDelta = currentTime - speedSampleStart
                 
                 if (sampleDelta > 500) {
