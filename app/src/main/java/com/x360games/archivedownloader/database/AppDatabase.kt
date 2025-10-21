@@ -8,8 +8,8 @@ import androidx.room.TypeConverter
 import androidx.room.TypeConverters
 
 @Database(
-    entities = [DownloadEntity::class, SpeedHistoryEntity::class],
-    version = 2,
+    entities = [DownloadEntity::class, SpeedHistoryEntity::class, DownloadPartEntity::class],
+    version = 3,
     exportSchema = false
 )
 @TypeConverters(Converters::class)
@@ -17,6 +17,7 @@ abstract class AppDatabase : RoomDatabase() {
     
     abstract fun downloadDao(): DownloadDao
     abstract fun speedHistoryDao(): SpeedHistoryDao
+    abstract fun downloadPartDao(): DownloadPartDao
     
     companion object {
         @Volatile

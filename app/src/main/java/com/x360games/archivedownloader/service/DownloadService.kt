@@ -229,6 +229,31 @@ class DownloadService : Service() {
                 
                 database.downloadDao().updateStatus(downloadId, DownloadStatus.DOWNLOADING)
                 
+                val existingParts = database.downloadPartDao().getPartsForDownload(downloadId)
+                
+                if (existingParts.isEmpty() && download.downloadParts > 1) {
+                    val partSize = download.totalBytes / download.downloadParts
+                    val initialParts = (0 until download.downloadParts).map { partIndex ->
+                        val start = partIndex * partSize
+                        val end = if (partIndex == download.downloadParts - 1) download.totalBytes - 1 else (partIndex + 1) * partSize - 1
+                        com.x360games.archivedownloader.database.DownloadPartEntity(
+                            downloadId = downloadId,
+                            partIndex = partIndex,
+                            startByte = start,
+                            endByte = end,
+                            downloadedBytes = 0,
+                            isCompleted = false
+                        )
+                    }
+                    database.downloadPartDao().insertParts(initialParts)
+                }
+                
+                val partsToUse = if (existingParts.isEmpty()) {
+                    database.downloadPartDao().getPartsForDownload(downloadId)
+                } else {
+                    existingParts
+                }
+                
                 var lastHistoryUpdate = 0L
                 
                 val result = repository.downloadFileResumable(
@@ -237,6 +262,7 @@ class DownloadService : Service() {
                     existingBytes = download.downloadedBytes,
                     cookie = download.cookie,
                     parts = downloadParts,
+                    existingParts = partsToUse,
                     onProgress = { downloadedBytes, speed ->
                         serviceScope.launch {
                             database.downloadDao().updateProgress(
@@ -264,6 +290,11 @@ class DownloadService : Service() {
                     },
                     onPartProgress = { partIndex, partBytes, partTotal ->
                         DownloadProgressTracker.updatePartProgress(downloadId, partIndex, partBytes)
+                    },
+                    onSavePartProgress = { partIndex, startByte, endByte, downloadedBytes, isCompleted ->
+                        serviceScope.launch {
+                            database.downloadPartDao().updatePartProgress(downloadId, partIndex, downloadedBytes, isCompleted)
+                        }
                     }
                 )
                 
