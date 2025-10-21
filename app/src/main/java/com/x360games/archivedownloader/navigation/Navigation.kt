@@ -140,7 +140,8 @@ fun HomeScreenWithBottomNav(
             0 -> MainScreen(
                 viewModel = mainViewModel,
                 onNavigateToDownloadManager = { selectedTab = 1 },
-                onNavigateToSettings = { selectedTab = 2 }
+                onNavigateToSettings = { selectedTab = 2 },
+                modifier = Modifier.padding(paddingValues)
             )
             1 -> DownloadManagerScreen(
                 downloads = downloads,

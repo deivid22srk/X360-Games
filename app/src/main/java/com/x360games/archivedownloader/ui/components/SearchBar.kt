@@ -2,6 +2,7 @@ package com.x360games.archivedownloader.ui.components
 
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Search
@@ -28,12 +29,18 @@ fun SearchBar(
         onValueChange = onQueryChange,
         modifier = modifier
             .fillMaxWidth()
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        placeholder = { Text(stringResource(R.string.search_hint)) },
+            .padding(horizontal = 16.dp, vertical = 12.dp),
+        placeholder = { 
+            Text(
+                stringResource(R.string.search_hint),
+                style = MaterialTheme.typography.bodyLarge
+            )
+        },
         leadingIcon = {
             Icon(
                 imageVector = Icons.Default.Search,
-                contentDescription = "Search"
+                contentDescription = "Search",
+                tint = MaterialTheme.colorScheme.primary
             )
         },
         trailingIcon = {
@@ -47,10 +54,13 @@ fun SearchBar(
             }
         },
         singleLine = true,
-        shape = MaterialTheme.shapes.large,
+        shape = RoundedCornerShape(28.dp),
         colors = OutlinedTextFieldDefaults.colors(
-            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
-            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f)
+        ),
+        textStyle = MaterialTheme.typography.bodyLarge
     )
 }

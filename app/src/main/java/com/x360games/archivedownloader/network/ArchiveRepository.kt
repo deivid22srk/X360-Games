@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.documentfile.provider.DocumentFile
+import com.google.gson.Gson
 import com.x360games.archivedownloader.data.ArchiveItem
 import com.x360games.archivedownloader.data.ArchiveMetadataResponse
 import com.x360games.archivedownloader.data.X360Collection
@@ -26,8 +27,8 @@ import java.util.concurrent.atomic.AtomicLong
 import kotlin.coroutines.coroutineContext
 
 class ArchiveRepository(private val context: Context) {
-    private val githubApi = RetrofitClient.githubApi
     private val archiveApi = RetrofitClient.archiveApi
+    private val gson = Gson()
     
     init {
         cleanupOrphanedTempFiles()
@@ -50,10 +51,18 @@ class ArchiveRepository(private val context: Context) {
     
     suspend fun getX360Collection(): Result<X360Collection> = withContext(Dispatchers.IO) {
         try {
-            val collection = githubApi.getX360Collection()
+            Log.d("ArchiveRepository", "Loading collection from assets")
+            
+            val jsonString = context.assets.open("X360-Games.json").bufferedReader().use {
+                it.readText()
+            }
+            
+            val collection = gson.fromJson(jsonString, X360Collection::class.java)
+            Log.d("ArchiveRepository", "Loaded ${collection.items.size} items from assets")
+            
             Result.success(collection)
         } catch (e: Exception) {
-            Log.e("ArchiveRepository", "Error getting collection", e)
+            Log.e("ArchiveRepository", "Error loading collection from assets", e)
             Result.failure(e)
         }
     }

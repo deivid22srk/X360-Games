@@ -62,7 +62,8 @@ import com.x360games.archivedownloader.viewmodel.UiState
 fun MainScreen(
     viewModel: MainViewModel = viewModel(),
     onNavigateToDownloadManager: () -> Unit = {},
-    onNavigateToSettings: () -> Unit = {}
+    onNavigateToSettings: () -> Unit = {},
+    modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
     val uiState by viewModel.uiState.collectAsState()
@@ -139,7 +140,8 @@ fun MainScreen(
                 }
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        modifier = modifier
     ) { paddingValues ->
         Column(
             modifier = Modifier
