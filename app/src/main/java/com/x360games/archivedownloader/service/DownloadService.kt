@@ -9,6 +9,7 @@ import android.content.Intent
 import android.os.Binder
 import android.os.Build
 import android.os.IBinder
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.x360games.archivedownloader.MainActivity
 import com.x360games.archivedownloader.R
@@ -231,6 +232,13 @@ class DownloadService : Service() {
                 
                 val existingParts = database.downloadPartDao().getPartsForDownload(downloadId)
                 
+                Log.d("DownloadService", "=== Starting/Resuming Download $downloadId ===")
+                Log.d("DownloadService", "Download Info: fileName=${download.fileName}, totalBytes=${download.totalBytes}, downloadedBytes=${download.downloadedBytes}")
+                Log.d("DownloadService", "Existing parts count: ${existingParts.size}")
+                existingParts.forEach { part ->
+                    Log.d("DownloadService", "  Part ${part.partIndex}: ${part.downloadedBytes}/${part.endByte - part.startByte + 1} bytes (${if(part.isCompleted) "COMPLETED" else "INCOMPLETE"})")
+                }
+                
                 if (existingParts.isEmpty() && download.downloadParts > 1) {
                     val partSize = download.totalBytes / download.downloadParts
                     val initialParts = (0 until download.downloadParts).map { partIndex ->
@@ -252,6 +260,11 @@ class DownloadService : Service() {
                     database.downloadPartDao().getPartsForDownload(downloadId)
                 } else {
                     existingParts
+                }
+                
+                partsToUse.forEach { part ->
+                    DownloadProgressTracker.updatePartProgress(downloadId, part.partIndex, part.downloadedBytes)
+                    Log.d("DownloadService", "Restored part ${part.partIndex} progress: ${part.downloadedBytes} bytes to tracker")
                 }
                 
                 var lastHistoryUpdate = 0L
@@ -319,7 +332,23 @@ class DownloadService : Service() {
                 )
                 
             } catch (e: CancellationException) {
-                database.downloadDao().updateStatus(downloadId, DownloadStatus.PAUSED)
+                serviceScope.launch {
+                    val currentDownload = database.downloadDao().getDownloadByIdSync(downloadId)
+                    if (currentDownload != null) {
+                        val parts = database.downloadPartDao().getPartsForDownload(downloadId)
+                        val totalDownloadedFromParts = parts.sumOf { it.downloadedBytes }
+                        
+                        Log.d("DownloadService", "Download $downloadId paused. Total downloaded from parts: ${totalDownloadedFromParts / 1024 / 1024} MB")
+                        
+                        database.downloadDao().updateProgress(
+                            downloadId,
+                            totalDownloadedFromParts,
+                            0,
+                            System.currentTimeMillis()
+                        )
+                        database.downloadDao().updateStatus(downloadId, DownloadStatus.PAUSED)
+                    }
+                }.join()
             } catch (e: Exception) {
                 database.downloadDao().updateStatusWithError(
                     downloadId,

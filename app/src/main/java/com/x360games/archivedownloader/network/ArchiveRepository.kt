@@ -302,10 +302,29 @@ class ArchiveRepository(private val context: Context) {
             }
             
             RandomAccessFile(file, "rw").use { randomAccessFile ->
-                Log.d("ArchiveRepository", "Preallocating file space to $totalBytes bytes...")
-                randomAccessFile.setLength(totalBytes)
-                randomAccessFile.fd.sync()
-                Log.d("ArchiveRepository", "File space allocated. File size: ${file.length()} bytes")
+                val fileChannel = randomAccessFile.channel
+                
+                if (fileChannel.size() < totalBytes) {
+                    Log.d("ArchiveRepository", "Allocating file space from ${fileChannel.size()} to $totalBytes bytes...")
+                    try {
+                        fileChannel.position(totalBytes - 1)
+                        randomAccessFile.write(0)
+                        fileChannel.force(true)
+                        randomAccessFile.fd.sync()
+                        Log.d("ArchiveRepository", "File space allocated by writing at end. File size: ${file.length()} bytes")
+                    } catch (e: Exception) {
+                        Log.w("ArchiveRepository", "Failed to allocate by writing, trying setLength: ${e.message}")
+                        try {
+                            randomAccessFile.setLength(totalBytes)
+                            randomAccessFile.fd.sync()
+                            Log.d("ArchiveRepository", "File space allocated via setLength. File size: ${file.length()} bytes")
+                        } catch (e2: Exception) {
+                            Log.e("ArchiveRepository", "Failed to allocate file space: ${e2.message}")
+                        }
+                    }
+                } else {
+                    Log.d("ArchiveRepository", "File already has correct size: ${fileChannel.size()} bytes")
+                }
                 
                 val jobs = (0 until parts).map { partIndex ->
                     async {
@@ -511,6 +530,12 @@ class ArchiveRepository(private val context: Context) {
                     }
                     lastSyncTime = currentTime
                     lastSyncBytes = currentPosition
+                    
+                    if (partIndex >= 0 && onSavePartProgress != null && partProgressMap != null) {
+                        val partDownloaded = partProgressMap[partIndex]?.get() ?: 0L
+                        val partEnd = partOriginalStart + partTotal - 1
+                        onSavePartProgress.invoke(partIndex, partOriginalStart, partEnd, partDownloaded, false)
+                    }
                     
                     progressMutex.withLock {
                         val bytesDiff = totalDownloaded - lastDownloadedBytes.get()
