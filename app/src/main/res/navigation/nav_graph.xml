@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="utf-8"?>
+<navigation xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/nav_graph"
+    app:startDestination="@id/setupFragment">
+
+    <fragment
+        android:id="@+id/setupFragment"
+        android:name="com.x360games.archivedownloader.ui.fragments.SetupFragment"
+        android:label="Setup">
+        <action
+            android:id="@+id/action_setupFragment_to_mainFragment"
+            app:destination="@id/mainFragment"
+            app:popUpTo="@id/setupFragment"
+            app:popUpToInclusive="true" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/mainFragment"
+        android:name="com.x360games.archivedownloader.ui.fragments.MainFragment"
+        android:label="X360 Games">
+        <action
+            android:id="@+id/action_mainFragment_to_downloadDetailsFragment"
+            app:destination="@id/downloadDetailsFragment" />
+    </fragment>
+
+    <fragment
+        android:id="@+id/downloadDetailsFragment"
+        android:name="com.x360games.archivedownloader.ui.fragments.DownloadDetailsFragment"
+        android:label="Download Details">
+        <argument
+            android:name="downloadId"
+            app:argType="long" />
+    </fragment>
+
+</navigation>
