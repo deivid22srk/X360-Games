@@ -57,9 +57,10 @@ class MyrientService(private val context: Context) {
                     val fileName = linkElement.text().trim()
                     if (fileName.isEmpty() || fileName == "../") continue
                     
-                    // Skip non-game files (only get .iso and .rar files)
+                    // Skip non-game files (only get .iso, .rar and .zip files)
                     if (!fileName.endsWith(".iso", ignoreCase = true) && 
-                        !fileName.endsWith(".rar", ignoreCase = true)) {
+                        !fileName.endsWith(".rar", ignoreCase = true) &&
+                        !fileName.endsWith(".zip", ignoreCase = true)) {
                         continue
                     }
                     

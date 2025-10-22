@@ -135,7 +135,7 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
     
-    fun loadData(forceRefresh: Boolean = false) {
+    fun loadData(forceRefresh: Boolean = false, sourceOverride: String? = null) {
         viewModelScope.launch {
             if (!forceRefresh) {
                 val cachedItems = cacheManager.getCachedItems()
@@ -157,7 +157,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             val collection = collectionResult.getOrNull()!!
-            val useInternetArchive = dataSource.value == "internet_archive"
+            val currentSource = sourceOverride ?: dataSource.value
+            val useInternetArchive = currentSource == "internet_archive"
+            Log.d("MainViewModel", "Loading data from source: $currentSource (useInternetArchive: $useInternetArchive)")
             val itemsResult = repository.getAllArchiveItems(collection, useInternetArchive)
             
             if (itemsResult.isSuccess) {
@@ -213,7 +215,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun downloadFile(item: ArchiveItem, file: ArchiveFile, customPath: String? = null) {
         val notificationId = "${item.id}_${file.name}".hashCode()
-        val fileUrl = "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
+        // For Myrient, the URL is already complete in item.url
+        val fileUrl = if (item.url.contains("myrient.erista.me")) {
+            item.url // Myrient URLs are already complete
+        } else {
+            "https://archive.org/download/${extractIdentifier(item.url)}/${file.name}"
+        }
         
         val destinationPath = if (customPath != null && customPath.startsWith("content://")) {
             val treeUri = Uri.parse(customPath)
@@ -301,9 +308,10 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     
     fun setDataSource(source: String) {
         viewModelScope.launch {
+            Log.d("MainViewModel", "Setting data source to: $source")
             preferencesManager.setDataSource(source)
             cacheManager.clearCache()
-            loadData(forceRefresh = true)
+            loadData(forceRefresh = true, sourceOverride = source)
         }
     }
     

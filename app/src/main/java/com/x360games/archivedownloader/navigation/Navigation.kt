@@ -1,5 +1,6 @@
 package com.x360games.archivedownloader.navigation
 
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
@@ -14,6 +15,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.NavHostController
 import androidx.navigation.NavType
@@ -123,6 +125,7 @@ fun HomeScreenWithBottomNav(
     )
     
     Scaffold(
+        contentWindowInsets = WindowInsets(0.dp),
         bottomBar = {
             NavigationBar {
                 bottomNavItems.forEachIndexed { index, item ->
