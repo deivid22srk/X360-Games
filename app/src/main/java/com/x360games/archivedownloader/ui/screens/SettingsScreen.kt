@@ -18,15 +18,20 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.navigationBars
+import androidx.compose.foundation.layout.windowInsetsPadding
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.BatteryChargingFull
+import androidx.compose.material.icons.filled.Cloud
 import androidx.compose.material.icons.filled.Folder
 import androidx.compose.material.icons.filled.FolderOpen
 import androidx.compose.material.icons.filled.Queue
 import androidx.compose.material.icons.filled.Speed
+import androidx.compose.material.icons.filled.Storage
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,6 +43,7 @@ import androidx.compose.material3.ListItemDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
@@ -68,6 +74,7 @@ fun SettingsScreen(
     val autoExtract by viewModel.autoExtract.collectAsState(initial = false)
     val extractionPath by viewModel.extractionPath.collectAsState()
     val concurrentDownloads by viewModel.concurrentDownloads.collectAsState(initial = 1)
+    val dataSource by viewModel.dataSource.collectAsState(initial = "internet_archive")
     
     val powerManager = context.getSystemService(Context.POWER_SERVICE) as PowerManager
     val isIgnoringBatteryOptimizations = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
@@ -113,20 +120,106 @@ fun SettingsScreen(
                     }
                 }
             )
-        }
+        },
+        contentWindowInsets = WindowInsets(0, 0, 0, 0)
     ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
+                .windowInsetsPadding(WindowInsets.navigationBars)
                 .padding(16.dp)
         ) {
+            Text(
+                text = "Data Source",
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(bottom = 8.dp)
+            )
+            
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
+            ) {
+                ListItem(
+                    modifier = Modifier.clickable { 
+                        scope.launch {
+                            viewModel.setDataSource("internet_archive")
+                        }
+                    },
+                    headlineContent = { Text("Internet Archive") },
+                    supportingContent = { 
+                        Text(
+                            text = "Original source with full collection",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Cloud,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingContent = {
+                        RadioButton(
+                            selected = dataSource == "internet_archive",
+                            onClick = { 
+                                scope.launch {
+                                    viewModel.setDataSource("internet_archive")
+                                }
+                            }
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+                
+                HorizontalDivider()
+                
+                ListItem(
+                    modifier = Modifier.clickable { 
+                        scope.launch {
+                            viewModel.setDataSource("myrient")
+                        }
+                    },
+                    headlineContent = { Text("Myrient") },
+                    supportingContent = { 
+                        Text(
+                            text = "Alternative mirror with direct downloads",
+                            style = MaterialTheme.typography.bodySmall
+                        )
+                    },
+                    leadingContent = {
+                        Icon(
+                            imageVector = Icons.Default.Storage,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary
+                        )
+                    },
+                    trailingContent = {
+                        RadioButton(
+                            selected = dataSource == "myrient",
+                            onClick = { 
+                                scope.launch {
+                                    viewModel.setDataSource("myrient")
+                                }
+                            }
+                        )
+                    },
+                    colors = ListItemDefaults.colors(
+                        containerColor = MaterialTheme.colorScheme.surface
+                    )
+                )
+            }
+            
             Text(
                 text = "Download Settings",
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.padding(bottom = 8.dp)
+                modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
             )
             
             Card(

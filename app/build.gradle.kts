@@ -117,6 +117,8 @@ dependencies {
     
     implementation("com.github.junrar:junrar:7.5.5")
     
+    implementation("org.jsoup:jsoup:1.17.2")
+    
     debugImplementation("androidx.compose.ui:ui-tooling")
     debugImplementation("androidx.compose.ui:ui-test-manifest")
 }

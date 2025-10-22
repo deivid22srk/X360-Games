@@ -28,6 +28,7 @@ import kotlin.coroutines.coroutineContext
 
 class ArchiveRepository(private val context: Context) {
     private val archiveApi = RetrofitClient.archiveApi
+    private val myrientService = MyrientService(context)
     private val gson = Gson()
     
     init {
@@ -67,9 +68,14 @@ class ArchiveRepository(private val context: Context) {
         }
     }
     
-    suspend fun getAllArchiveItems(collection: X360Collection): Result<List<ArchiveItem>> = 
+    suspend fun getAllArchiveItems(collection: X360Collection, useInternetArchive: Boolean = true): Result<List<ArchiveItem>> = 
         withContext(Dispatchers.IO) {
             try {
+                if (!useInternetArchive) {
+                    Log.d("ArchiveRepository", "Using Myrient as data source")
+                    return@withContext myrientService.getX360Games()
+                }
+                
                 val items = collection.items.map { item ->
                     async {
                         try {

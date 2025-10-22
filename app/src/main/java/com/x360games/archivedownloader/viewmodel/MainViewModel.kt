@@ -109,6 +109,12 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
         false
     )
     
+    val dataSource = preferencesManager.dataSource.stateIn(
+        viewModelScope,
+        SharingStarted.WhileSubscribed(5000),
+        "internet_archive"
+    )
+    
     init {
         loadData()
         observeStoredCredentials()
@@ -151,7 +157,8 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
             }
             
             val collection = collectionResult.getOrNull()!!
-            val itemsResult = repository.getAllArchiveItems(collection)
+            val useInternetArchive = dataSource.value == "internet_archive"
+            val itemsResult = repository.getAllArchiveItems(collection, useInternetArchive)
             
             if (itemsResult.isSuccess) {
                 allItems = itemsResult.getOrNull()!!
@@ -289,6 +296,14 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     fun setDownloadParts(parts: Int) {
         viewModelScope.launch {
             preferencesManager.setDownloadParts(parts)
+        }
+    }
+    
+    fun setDataSource(source: String) {
+        viewModelScope.launch {
+            preferencesManager.setDataSource(source)
+            cacheManager.clearCache()
+            loadData(forceRefresh = true)
         }
     }
     
