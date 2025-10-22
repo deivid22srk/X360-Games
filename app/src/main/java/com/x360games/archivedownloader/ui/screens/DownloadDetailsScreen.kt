@@ -49,11 +49,9 @@ fun DownloadDetailsScreen(
     val context = LocalContext.current
     
     Scaffold(
-        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = { Text("Download Details") },
-                windowInsets = WindowInsets(0.dp),
                 navigationIcon = {
                     IconButton(onClick = onNavigateBack) {
                         Icon(Icons.Default.ArrowBack, "Back")

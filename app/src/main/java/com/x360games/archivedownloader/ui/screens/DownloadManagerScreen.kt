@@ -55,7 +55,6 @@ fun DownloadManagerScreen(
     }
     
     Scaffold(
-        contentWindowInsets = WindowInsets(0.dp),
         topBar = {
             TopAppBar(
                 title = { 
@@ -70,7 +69,6 @@ fun DownloadManagerScreen(
                         }
                     }
                 },
-                windowInsets = WindowInsets(0.dp),
                 navigationIcon = {
                     IconButton(onClick = {
                         if (selectionMode) {

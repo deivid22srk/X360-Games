@@ -26,7 +26,6 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
-        WindowCompat.setDecorFitsSystemWindows(window, false)
         
         val intent = Intent(this, DownloadService::class.java).apply {
             action = DownloadService.ACTION_RESUME_ALL
