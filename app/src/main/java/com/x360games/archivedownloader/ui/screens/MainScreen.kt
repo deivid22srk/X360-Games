@@ -33,11 +33,6 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
-import androidx.compose.material3.TopAppBarScrollBehavior
-import androidx.compose.foundation.layout.WindowInsets
-import androidx.compose.foundation.layout.navigationBars
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -111,8 +106,6 @@ fun MainScreen(
         }
     }
     
-    val scrollBehavior = TopAppBarDefaults.pinnedScrollBehavior()
-    
     Scaffold(
         topBar = {
             TopAppBar(
@@ -121,7 +114,6 @@ fun MainScreen(
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
                     titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
                 ),
-                scrollBehavior = scrollBehavior,
                 actions = {
                     if (isLoggedIn) {
                         IconButton(onClick = { viewModel.logout() }) {
@@ -149,8 +141,7 @@ fun MainScreen(
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) },
-        contentWindowInsets = WindowInsets(0, 0, 0, 0),
-        modifier = modifier.nestedScroll(scrollBehavior.nestedScrollConnection)
+        modifier = modifier
     ) { paddingValues ->
         Column(
             modifier = Modifier
@@ -202,9 +193,7 @@ fun MainScreen(
                         }
                     } else {
                         LazyColumn(
-                            modifier = Modifier
-                                .fillMaxSize()
-                                .windowInsetsPadding(WindowInsets.navigationBars)
+                            modifier = Modifier.fillMaxSize()
                         ) {
                             items(filteredItems, key = { it.id }) { item ->
                                 ArchiveItemCard(
