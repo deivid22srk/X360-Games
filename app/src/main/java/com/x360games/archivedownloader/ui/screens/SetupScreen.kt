@@ -74,8 +74,7 @@ fun SetupScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                modifier = Modifier.statusBarsPadding()
+                )
             )
         },
         bottomBar = {

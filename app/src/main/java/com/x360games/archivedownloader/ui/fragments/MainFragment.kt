@@ -4,8 +4,8 @@ import android.os.Bundle
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
@@ -65,11 +65,12 @@ class MainFragment : Fragment() {
                     BottomNavItem.Settings
                 )
                 
+                // Main scaffold with bottom navigation
+                // contentWindowInsets = 0 allows inner scaffolds to handle their own insets
                 Scaffold(
+                    contentWindowInsets = WindowInsets(0, 0, 0, 0),
                     bottomBar = {
-                        NavigationBar(
-                            modifier = Modifier.navigationBarsPadding()
-                        ) {
+                        NavigationBar {
                             bottomNavItems.forEachIndexed { index, item ->
                                 NavigationBarItem(
                                     selected = selectedTab == index,

@@ -116,8 +116,9 @@ class MainViewModel(application: Application) : AndroidViewModel(application) {
     )
     
     init {
-        loadData()
         observeStoredCredentials()
+        // Load data from cache or network
+        loadData()
     }
     
     private fun observeStoredCredentials() {

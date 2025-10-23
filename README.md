@@ -74,6 +74,27 @@ O APK será gerado em: `app/build/outputs/apk/debug/app-debug.apk`
 - Captura automática de cookies
 - Suporte a downloads de arquivos restritos
 
+### Setup Inicial Inteligente
+- Configuração inicial executada apenas uma vez
+- Navegação inteligente baseada no status de setup
+- Persistência de preferências usando DataStore
+
+### Dark Mode Automático
+- Suporte completo a Material3 com cores dinâmicas
+- Segue automaticamente as preferências do sistema
+- Paleta de cores otimizada para acessibilidade
+
+## Atualizações Recentes
+
+Para ver o histórico completo de mudanças, consulte [CHANGELOG.md](CHANGELOG.md).
+
+### Última versão (2025-10-23)
+- ✅ Corrigido problema do setup inicial sendo executado toda vez
+- ✅ Implementado suporte completo a dark mode
+- ✅ Corrigido problemas com edge-to-edge e insets
+- ✅ Otimizada arquitetura de UI com Scaffolds
+- ✅ Melhorada consistência visual em todas as telas
+
 ## Licença
 
 Este projeto é de código aberto.

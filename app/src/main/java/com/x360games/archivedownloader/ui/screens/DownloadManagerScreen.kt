@@ -122,8 +122,7 @@ fun DownloadManagerScreen(
                 colors = TopAppBarDefaults.topAppBarColors(
                     containerColor = MaterialTheme.colorScheme.surface,
                     titleContentColor = MaterialTheme.colorScheme.onSurface
-                ),
-                modifier = Modifier.statusBarsPadding()
+                )
             )
         }
     ) { padding ->

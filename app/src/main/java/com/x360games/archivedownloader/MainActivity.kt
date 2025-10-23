@@ -23,8 +23,12 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        // Enable edge-to-edge
+        // Enable edge-to-edge display (content goes behind system bars)
         WindowCompat.setDecorFitsSystemWindows(window, false)
+        
+        // Check if user has completed initial setup
+        // This determines which screen to show first
+        val setupCompleted = runBlocking { mainViewModel.setupCompleted.first() }
         
         setContentView(R.layout.activity_main)
         
@@ -32,12 +36,13 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         
-        // Check if setup is completed and set start destination
-        val setupCompleted = runBlocking { mainViewModel.setupCompleted.first() }
-        if (setupCompleted && navController.currentDestination?.id == R.id.setupFragment) {
-            navController.popBackStack()
-            navController.navigate(R.id.mainFragment)
-        }
+        // Dynamically set start destination based on setup status
+        // This prevents showing setup screen every time the app opens
+        val navGraph = navController.navInflater.inflate(R.navigation.nav_graph)
+        navGraph.setStartDestination(
+            if (setupCompleted) R.id.mainFragment else R.id.setupFragment
+        )
+        navController.graph = navGraph
         
         // Resume downloads
         val intent = Intent(this, DownloadService::class.java).apply {
