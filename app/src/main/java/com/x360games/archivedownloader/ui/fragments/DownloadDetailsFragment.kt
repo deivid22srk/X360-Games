@@ -11,6 +11,7 @@ import androidx.fragment.app.activityViewModels
 import androidx.navigation.fragment.findNavController
 import com.x360games.archivedownloader.ui.screens.DownloadDetailsScreen
 import com.x360games.archivedownloader.viewmodel.DownloadViewModel
+import com.x360games.archivedownloader.ui.theme.X360GamesTheme
 
 class DownloadDetailsFragment : Fragment() {
     
@@ -26,13 +27,15 @@ class DownloadDetailsFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                DownloadDetailsScreen(
+                X360GamesTheme {
+                    DownloadDetailsScreen(
                     downloadId = downloadId,
                     onNavigateBack = {
                         findNavController().navigateUp()
                     },
                     downloadViewModel = downloadViewModel
                 )
+                }
             }
         }
     }

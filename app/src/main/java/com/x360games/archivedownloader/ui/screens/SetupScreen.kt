@@ -72,9 +72,10 @@ fun SetupScreen(
             TopAppBar(
                 title = { Text("Welcome to X360 Games") },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    titleContentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+                    containerColor = MaterialTheme.colorScheme.surface,
+                    titleContentColor = MaterialTheme.colorScheme.onSurface
+                ),
+                modifier = Modifier.statusBarsPadding()
             )
         },
         bottomBar = {

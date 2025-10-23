@@ -114,7 +114,8 @@ fun ToolsScreen(
                             contentDescription = "Voltar"
                         )
                     }
-                }
+                },
+                modifier = Modifier.statusBarsPadding()
             )
         }
     ) { paddingValues ->

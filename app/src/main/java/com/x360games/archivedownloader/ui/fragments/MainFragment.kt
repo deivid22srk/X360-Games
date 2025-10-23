@@ -5,6 +5,7 @@ import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Download
 import androidx.compose.material.icons.filled.Home
@@ -28,6 +29,7 @@ import com.x360games.archivedownloader.ui.screens.DownloadManagerScreen
 import com.x360games.archivedownloader.ui.screens.SettingsScreen
 import com.x360games.archivedownloader.viewmodel.MainViewModel
 import com.x360games.archivedownloader.viewmodel.DownloadViewModel
+import com.x360games.archivedownloader.ui.theme.X360GamesTheme
 
 sealed class BottomNavItem(
     val route: String,
@@ -52,7 +54,8 @@ class MainFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                var selectedTab by remember { mutableIntStateOf(0) }
+                X360GamesTheme {
+                    var selectedTab by remember { mutableIntStateOf(0) }
                 val downloads by downloadViewModel.allDownloads.collectAsState()
                 val partsProgress by downloadViewModel.partsProgress.collectAsState()
                 
@@ -64,7 +67,9 @@ class MainFragment : Fragment() {
                 
                 Scaffold(
                     bottomBar = {
-                        NavigationBar {
+                        NavigationBar(
+                            modifier = Modifier.navigationBarsPadding()
+                        ) {
                             bottomNavItems.forEachIndexed { index, item ->
                                 NavigationBarItem(
                                     selected = selectedTab == index,
@@ -107,6 +112,7 @@ class MainFragment : Fragment() {
                             modifier = Modifier.padding(paddingValues)
                         )
                     }
+                }
                 }
             }
         }

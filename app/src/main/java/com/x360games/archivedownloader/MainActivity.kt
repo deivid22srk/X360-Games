@@ -13,6 +13,7 @@ import com.x360games.archivedownloader.service.DownloadService
 import com.x360games.archivedownloader.viewmodel.MainViewModel
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.runBlocking
 
 class MainActivity : AppCompatActivity() {
     
@@ -31,12 +32,11 @@ class MainActivity : AppCompatActivity() {
             .findFragmentById(R.id.nav_host_fragment) as NavHostFragment
         navController = navHostFragment.navController
         
-        // Check if setup is completed
-        lifecycleScope.launch {
-            val setupCompleted = mainViewModel.setupCompleted.first()
-            if (setupCompleted) {
-                navController.navigate(R.id.mainFragment)
-            }
+        // Check if setup is completed and set start destination
+        val setupCompleted = runBlocking { mainViewModel.setupCompleted.first() }
+        if (setupCompleted && navController.currentDestination?.id == R.id.setupFragment) {
+            navController.popBackStack()
+            navController.navigate(R.id.mainFragment)
         }
         
         // Resume downloads

@@ -12,6 +12,7 @@ import androidx.navigation.fragment.findNavController
 import com.x360games.archivedownloader.R
 import com.x360games.archivedownloader.ui.screens.SetupScreen
 import com.x360games.archivedownloader.viewmodel.MainViewModel
+import com.x360games.archivedownloader.ui.theme.X360GamesTheme
 
 class SetupFragment : Fragment() {
     
@@ -25,7 +26,8 @@ class SetupFragment : Fragment() {
         return ComposeView(requireContext()).apply {
             setViewCompositionStrategy(ViewCompositionStrategy.DisposeOnViewTreeLifecycleDestroyed)
             setContent {
-                SetupScreen(
+                X360GamesTheme {
+                    SetupScreen(
                     onSetupComplete = {
                         findNavController().navigate(R.id.action_setupFragment_to_mainFragment)
                     },
@@ -34,6 +36,7 @@ class SetupFragment : Fragment() {
                         mainViewModel.completeSetup()
                     }
                 )
+                }
             }
         }
     }
